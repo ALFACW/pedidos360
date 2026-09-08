@@ -43,14 +43,23 @@ function App() {
     setTimeout(() => setAlert(null), 4000);
   };
 
-  // Obtener Token de Azure
+  // Obtener Token de Azure (OIDC ID Token con Audience de Client ID y firma Entra ID)
   const getAccessToken = async () => {
     if (!isAuthenticated) throw new Error('No has iniciado sesión');
-    const response = await instance.acquireTokenSilent({
-      account: currentAccount,
-      scopes: loginRequest.scopes,
-    });
-    return response.accessToken;
+    try {
+      const response = await instance.acquireTokenSilent({
+        account: currentAccount,
+        scopes: loginRequest.scopes,
+      });
+      return response.idToken || currentAccount?.idToken || response.accessToken;
+    } catch (err) {
+      console.warn('acquireTokenSilent fallo, usando idToken de la cuenta:', err);
+      if (currentAccount?.idToken) {
+        return currentAccount.idToken;
+      }
+      const popupResponse = await instance.acquireTokenPopup(loginRequest);
+      return popupResponse.idToken || popupResponse.accessToken;
+    }
   };
 
   // Iniciar / Cerrar sesión
