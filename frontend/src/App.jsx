@@ -31,6 +31,9 @@ function App() {
   const [orderReceipt, setOrderReceipt] = useState(null);
   const [showHealthModal, setShowHealthModal] = useState(false);
   const [healthStatus, setHealthStatus] = useState(null);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [currentToken, setCurrentToken] = useState('');
+  const [decodedToken, setDecodedToken] = useState(null);
 
   // Formularios
   const [productForm, setProductForm] = useState({ name: '', price: '', stock: '', category: 'Computación', icon: '📦' });
@@ -79,6 +82,30 @@ function App() {
     setOrders([]);
     setProducts([]);
     setUsers([]);
+  };
+
+  // Abrir Modal de Inspección de Token JWT para Postman
+  const handleOpenTokenModal = async () => {
+    try {
+      const token = await getAccessToken();
+      setCurrentToken(token);
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        setDecodedToken(JSON.parse(jsonPayload));
+      } catch (e) {
+        setDecodedToken(null);
+      }
+      setShowTokenModal(true);
+    } catch (err) {
+      showAlert('Error al obtener el token: ' + err.message, 'error');
+    }
   };
 
   // Cargar datos cuando se autentica
@@ -474,6 +501,9 @@ function App() {
               <span className="user-tenant">Entra ID Verificado</span>
             </div>
           </div>
+          <button className="btn-token" onClick={handleOpenTokenModal} title="Ver Token JWT para Postman">
+            🔑 Ver Token JWT
+          </button>
           <button className="btn-logout" onClick={handleLogout} title="Cerrar sesión">
             🚪 Salir
           </button>
@@ -976,6 +1006,63 @@ function App() {
               >
                 Ver Mis Pedidos
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ==================== MODAL INSPECCIÓN TOKEN JWT PARA POSTMAN ==================== */}
+      {showTokenModal && (
+        <div className="modal-backdrop" onClick={() => setShowTokenModal(false)}>
+          <div className="modal-box token-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="view-header" style={{ marginBottom: '1rem' }}>
+              <div>
+                <h3>🔑 Token JWT (Microsoft Entra ID)</h3>
+                <p>Usa este Bearer Token para probar las peticiones GET y POST en <strong>Postman</strong>.</p>
+              </div>
+              <button className="btn-secondary" onClick={() => setShowTokenModal(false)}>✕</button>
+            </div>
+
+            <div className="form-group">
+              <label>Token Bearer Raw (Copia y pega en Postman):</label>
+              <textarea
+                readOnly
+                className="token-textarea"
+                rows="4"
+                value={currentToken}
+              />
+              <button
+                className="btn-primary copy-btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(currentToken);
+                  showAlert('¡Token copiado al portapapeles!');
+                }}
+              >
+                📋 Copiar Token para Postman
+              </button>
+            </div>
+
+            {decodedToken && (
+              <div className="token-claims">
+                <h4>Claims OIDC Verificadas:</h4>
+                <div className="claims-grid">
+                  <div><strong>aud (Audience):</strong> <code>{decodedToken.aud}</code></div>
+                  <div><strong>iss (Issuer):</strong> <code>{decodedToken.iss}</code></div>
+                  <div><strong>Usuario:</strong> <code>{decodedToken.name || decodedToken.preferred_username}</code></div>
+                  <div><strong>Email:</strong> <code>{decodedToken.preferred_username || decodedToken.email}</code></div>
+                </div>
+                <details style={{ marginTop: '0.8rem' }}>
+                  <summary style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 600 }}>🔍 Ver JSON Completo Decodificado</summary>
+                  <pre className="code-box" style={{ marginTop: '0.5rem' }}>{JSON.stringify(decodedToken, null, 2)}</pre>
+                </details>
+              </div>
+            )}
+
+            <div className="postman-help-box">
+              <strong>💡 Cómo probarlo en Postman:</strong>
+              <p><strong>1. Método:</strong> <code>POST</code> o <code>GET</code></p>
+              <p><strong>2. URL:</strong> <code>{apiBaseUrl}/api/products</code> (o <code>/api/orders</code>)</p>
+              <p><strong>3. En la pestaña Auth:</strong> Selecciona <strong>Bearer Token</strong> y pega el token de arriba.</p>
+              <p><strong>4. En la pestaña Body (si es POST):</strong> Selecciona <strong>raw / JSON</strong> y envía: <code>{JSON.stringify({ name: "Monitor Postman", price: 199.99, stock: 10, category: "Monitores", icon: "🖥️" })}</code></p>
             </div>
           </div>
         </div>
