@@ -1,387 +1,976 @@
 import { useMsal } from '@azure/msal-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { loginRequest } from './msalConfig';
 
 function App() {
   const { instance, accounts } = useMsal();
-  const [activeTab, setActiveTab] = useState('orders');
-  const [orders, setOrders] = useState(null);
-  const [productsData, setProductsData] = useState(null);
-  const [userData, setUserData] = useState(null);
-  const [publicResponse, setPublicResponse] = useState(null);
-
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [tokenPreview, setTokenPreview] = useState('');
-
-  const defaultApiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-  const [apiBaseUrl, setApiBaseUrl] = useState(defaultApiBase);
-
   const isAuthenticated = accounts.length > 0;
   const currentAccount = accounts[0];
 
+  // Navegación
+  const [activeTab, setActiveTab] = useState('tienda'); // tienda | carrito | pedidos | productos | usuarios
+  const [apiBaseUrl, setApiBaseUrl] = useState(import.meta.env.VITE_API_BASE_URL || 'https://3hvdy2quhe.execute-api.us-east-1.amazonaws.com/desarrollo');
+
+  // Estados de datos
+  const [products, setProducts] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [cart, setCart] = useState([]);
+
+  // Estados de carga y alertas
+  const [loading, setLoading] = useState(false);
+  const [alert, setAlert] = useState(null); // { type: 'success' | 'error', text: '' }
+
+  // Filtros de tienda
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
+
+  // Modales
+  const [productModal, setProductModal] = useState({ open: false, mode: 'create', data: null });
+  const [userModal, setUserModal] = useState({ open: false, mode: 'create', data: null });
+  const [orderReceipt, setOrderReceipt] = useState(null);
+  const [showHealthModal, setShowHealthModal] = useState(false);
+  const [healthStatus, setHealthStatus] = useState(null);
+
+  // Formularios
+  const [productForm, setProductForm] = useState({ name: '', price: '', stock: '', category: 'Computación', icon: '📦' });
+  const [userForm, setUserForm] = useState({ name: '', email: '', role: 'CLIENTE', status: 'ACTIVO' });
+  const [paymentMethod, setPaymentMethod] = useState('Tarjeta de Crédito / Débito');
+
+  // Notificación temporal
+  const showAlert = (text, type = 'success') => {
+    setAlert({ text, type });
+    setTimeout(() => setAlert(null), 4000);
+  };
+
+  // Obtener Token de Azure
+  const getAccessToken = async () => {
+    if (!isAuthenticated) throw new Error('No has iniciado sesión');
+    const response = await instance.acquireTokenSilent({
+      account: currentAccount,
+      scopes: loginRequest.scopes,
+    });
+    return response.accessToken;
+  };
+
+  // Iniciar / Cerrar sesión
   const handleLogin = async () => {
     try {
-      setError('');
-      const result = await instance.loginPopup(loginRequest);
-      console.log('Login OK:', result);
-      if (result.accessToken) {
-        setTokenPreview(result.accessToken.substring(0, 30) + '...');
-      }
+      setAlert(null);
+      await instance.loginPopup(loginRequest);
+      showAlert('¡Sesión iniciada con éxito en Microsoft Entra ID!');
     } catch (err) {
-      setError('Error al iniciar sesión con Azure Entra ID: ' + (err.message || err));
-      console.error(err);
+      showAlert('Error al iniciar sesión: ' + (err.message || err), 'error');
     }
   };
 
   const handleLogout = () => {
     instance.logoutPopup();
-    setOrders(null);
-    setProductsData(null);
-    setUserData(null);
-    setPublicResponse(null);
-    setTokenPreview('');
+    setCart([]);
+    setOrders([]);
+    setProducts([]);
+    setUsers([]);
   };
 
-  const getAccessToken = async () => {
-    if (!isAuthenticated) {
-      throw new Error('Primero debes iniciar sesión con Azure Entra ID.');
+  // Cargar datos cuando se autentica
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadProducts();
+      loadUsers();
+      loadOrders();
     }
-    const tokenResponse = await instance.acquireTokenSilent({
-      account: currentAccount,
-      scopes: loginRequest.scopes,
-    });
-    setTokenPreview(tokenResponse.accessToken.substring(0, 35) + '...');
-    return tokenResponse.accessToken;
-  };
+  }, [isAuthenticated, apiBaseUrl]);
 
-  // 1. Consultar Microservicio de Pedidos (Orders)
-  const handleFetchOrders = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const token = await getAccessToken();
-      const res = await fetch(`${apiBaseUrl}/api/orders`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      const data = await res.json();
-      setOrders(data);
-      setActiveTab('orders');
-    } catch (err) {
-      setError(`Error al consultar Orders (${apiBaseUrl}/api/orders): ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 2. Consultar Microservicio de Productos (Products)
-  const handleFetchProducts = async () => {
-    setLoading(true);
-    setError('');
+  // ===================== CRUD PRODUCTOS =====================
+  const loadProducts = async () => {
     try {
       const token = await getAccessToken();
       const res = await fetch(`${apiBaseUrl}/api/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data);
+      }
+    } catch (e) {
+      console.error('Error cargando productos:', e);
+    }
+  };
+
+  const handleSaveProduct = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const token = await getAccessToken();
+      const isEdit = productModal.mode === 'edit';
+      const url = isEdit ? `${apiBaseUrl}/api/products/${productModal.data.id}` : `${apiBaseUrl}/api/products`;
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const payload = {
+        name: productForm.name,
+        price: parseFloat(productForm.price),
+        stock: parseInt(productForm.stock),
+        category: productForm.category,
+        icon: productForm.icon || '📦',
+      };
+
+      const res = await fetch(url, {
+        method,
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      const data = await res.json();
-      setProductsData(data);
-      setActiveTab('products');
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showAlert(isEdit ? 'Producto actualizado correctamente' : 'Producto creado exitosamente');
+      setProductModal({ open: false, mode: 'create', data: null });
+      loadProducts();
     } catch (err) {
-      setError(`Error al consultar Products (${apiBaseUrl}/api/products): ${err.message}`);
+      showAlert('Error guardando producto: ' + err.message, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // 3. Consultar Microservicio de Usuarios (Users)
-  const handleFetchUsers = async () => {
-    setLoading(true);
-    setError('');
+  const handleDeleteProduct = async (id) => {
+    if (!confirm('¿Seguro que deseas eliminar este producto?')) return;
     try {
       const token = await getAccessToken();
-      const res = await fetch(`${apiBaseUrl}/api/users/me`, {
+      const res = await fetch(`${apiBaseUrl}/api/products/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showAlert('Producto eliminado');
+      loadProducts();
+      // Eliminar del carrito si estaba
+      setCart((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      showAlert('Error eliminando producto: ' + err.message, 'error');
+    }
+  };
+
+  // ===================== CRUD USUARIOS =====================
+  const loadUsers = async () => {
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`${apiBaseUrl}/api/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch (e) {
+      console.error('Error cargando usuarios:', e);
+    }
+  };
+
+  const handleSaveUser = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const token = await getAccessToken();
+      const isEdit = userModal.mode === 'edit';
+      const url = isEdit ? `${apiBaseUrl}/api/users/${userModal.data.id}` : `${apiBaseUrl}/api/users`;
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify(userForm),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      const data = await res.json();
-      setUserData(data);
-      setActiveTab('users');
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showAlert(isEdit ? 'Usuario modificado' : 'Usuario creado con éxito');
+      setUserModal({ open: false, mode: 'create', data: null });
+      loadUsers();
     } catch (err) {
-      setError(`Error al consultar Users (${apiBaseUrl}/api/users/me): ${err.message}`);
+      showAlert('Error al guardar usuario: ' + err.message, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // 4. Probar Endpoint Público (sin token)
-  const handleFetchPublic = async (serviceName) => {
-    setLoading(true);
-    setError('');
+  const handleDeleteUser = async (id) => {
+    if (!confirm('¿Seguro que deseas eliminar este usuario?')) return;
     try {
-      const res = await fetch(`${apiBaseUrl}/api/${serviceName}/public`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      const data = await res.json();
-      setPublicResponse({ service: serviceName, data });
-      setActiveTab('public');
+      const token = await getAccessToken();
+      const res = await fetch(`${apiBaseUrl}/api/users/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showAlert('Usuario eliminado');
+      loadUsers();
     } catch (err) {
-      setError(`Error en endpoint público /api/${serviceName}/public: ${err.message}`);
+      showAlert('Error eliminando usuario: ' + err.message, 'error');
+    }
+  };
+
+  // ===================== CARRITO & CHECKOUT =====================
+  const addToCart = (product) => {
+    setCart((prev) => {
+      const existing = prev.find((i) => i.id === product.id);
+      if (existing) {
+        return prev.map((i) => (i.id === product.id ? { ...i, qty: i.qty + 1 } : i));
+      }
+      return [...prev, { ...product, qty: 1 }];
+    });
+    showAlert(`"${product.name}" añadido al carrito 🛒`);
+  };
+
+  const updateCartQty = (id, delta) => {
+    setCart((prev) =>
+      prev
+        .map((item) => (item.id === id ? { ...item, qty: item.qty + delta } : item))
+        .filter((item) => item.qty > 0)
+    );
+  };
+
+  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+    try {
+      setLoading(true);
+      const token = await getAccessToken();
+
+      const orderPayload = {
+        items: cart.map((c) => ({ id: c.id, name: c.name, price: c.price, qty: c.qty })),
+        total: cartTotal,
+        paymentMethod: paymentMethod,
+      };
+
+      const res = await fetch(`${apiBaseUrl}/api/orders`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderPayload),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const newOrder = await res.json();
+
+      setCart([]);
+      setOrderReceipt(newOrder);
+      loadOrders();
+      showAlert('¡Compra simulada y confirmada con éxito! 🎉');
+    } catch (err) {
+      showAlert('Error al procesar la compra: ' + err.message, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="app-layout">
-      <header className="navbar">
-        <div className="nav-brand">
-          <span className="logo-icon">☁️</span>
-          <div>
-            <h1>Pedidos360 - Cloud Native</h1>
-            <span className="subtitle">Arquitectura: React + Azure Entra ID + AWS API Gateway + 3 Microservicios</span>
-          </div>
-        </div>
+  // ===================== PEDIDOS =====================
+  const loadOrders = async () => {
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`${apiBaseUrl}/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data);
+      }
+    } catch (e) {
+      console.error('Error cargando pedidos:', e);
+    }
+  };
 
-        <div className="nav-auth">
-          {!isAuthenticated ? (
-            <button className="btn-azure" onClick={handleLogin}>
-              <svg className="azure-icon" viewBox="0 0 24 24" width="18" height="18">
-                <path fill="#0078D4" d="M11.4 24H0L8.6 0h11.2l-8.4 24z"/>
-                <path fill="#50E6FF" d="M14.6 15.6l-5.2 8.4h11.2l4-8.4h-10z"/>
+  // ===================== CHEQUEO PÚBLICO =====================
+  const checkHealth = async () => {
+    try {
+      setLoading(true);
+      const [o, p, u] = await Promise.all([
+        fetch(`${apiBaseUrl}/api/orders/public`).then((r) => r.json()).catch((e) => ({ error: e.message })),
+        fetch(`${apiBaseUrl}/api/products/public`).then((r) => r.json()).catch((e) => ({ error: e.message })),
+        fetch(`${apiBaseUrl}/api/users/public`).then((r) => r.json()).catch((e) => ({ error: e.message })),
+      ]);
+      setHealthStatus({ orders: o, products: p, users: u });
+      setShowHealthModal(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Categorías disponibles
+  const categories = ['Todos', ...new Set(products.map((p) => p.category))];
+
+  // Productos filtrados
+  const filteredProducts = products.filter((p) => {
+    const matchesCategory = selectedCategory === 'Todos' || p.category === selectedCategory;
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  // =========================================================================
+  // RENDER: PANTALLA 1 - LOGIN AISLADO (Si NO está autenticado)
+  // =========================================================================
+  if (!isAuthenticated) {
+    return (
+      <div className="login-page">
+        <div className="login-backdrop"></div>
+        <div className="login-card">
+          <div className="login-brand">
+            <div className="login-icon">☁️</div>
+            <h1>Pedidos360</h1>
+            <p className="login-tagline">Plataforma Cloud Native E-Commerce</p>
+          </div>
+
+          <div className="login-features">
+            <div className="feature-item">
+              <span className="feat-icon">🛍️</span>
+              <div>
+                <strong>Tienda & Catálogo</strong>
+                <small>Explora productos y simula compras en tiempo real</small>
+              </div>
+            </div>
+            <div className="feature-item">
+              <span className="feat-icon">⚡</span>
+              <div>
+                <strong>3 Microservicios</strong>
+                <small>Spring Boot + AWS API Gateway + EC2</small>
+              </div>
+            </div>
+            <div className="feature-item">
+              <span className="feat-icon">🔒</span>
+              <div>
+                <strong>Seguridad OIDC / OAuth2</strong>
+                <small>Autenticación protegida con Microsoft Entra ID</small>
+              </div>
+            </div>
+          </div>
+
+          <div className="login-actions">
+            <button className="btn-azure-large" onClick={handleLogin}>
+              <svg className="azure-svg" viewBox="0 0 24 24" width="22" height="22">
+                <path fill="#0078D4" d="M11.4 24H0L8.6 0h11.2l-8.4 24z" />
+                <path fill="#50E6FF" d="M14.6 15.6l-5.2 8.4h11.2l4-8.4h-10z" />
               </svg>
               Iniciar sesión con Azure
             </button>
-          ) : (
-            <div className="auth-profile">
-              <span className="user-badge" title={currentAccount?.username}>
-                👤 {currentAccount?.name || currentAccount?.username}
-              </span>
-              <button className="btn-secondary" onClick={handleLogout}>
-                Cerrar sesión
+          </div>
+
+          <div className="login-footer">
+            <button className="btn-link" onClick={checkHealth}>
+              🔍 Probar conectividad con API Gateway (Público)
+            </button>
+          </div>
+        </div>
+
+        {/* Modal de Chequeo Público */}
+        {showHealthModal && (
+          <div className="modal-backdrop" onClick={() => setShowHealthModal(false)}>
+            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+              <h3>Estado de Conectividad con AWS API Gateway</h3>
+              <pre className="code-box">{JSON.stringify(healthStatus, null, 2)}</pre>
+              <button className="btn-secondary" onClick={() => setShowHealthModal(false)}>
+                Cerrar
               </button>
             </div>
-          )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // RENDER: PANTALLA 2 - DASHBOARD E-COMMERCE (Autenticado)
+  // =========================================================================
+  return (
+    <div className="ecommerce-app">
+      {/* Barra de Notificación Flotante */}
+      {alert && (
+        <div className={`toast-notification ${alert.type}`}>
+          {alert.type === 'success' ? '✅' : '⚠️'} {alert.text}
+        </div>
+      )}
+
+      {/* NAVBAR SUPERIOR */}
+      <header className="ecom-navbar">
+        <div className="nav-left">
+          <div className="nav-brand">
+            <span className="brand-icon">☁️</span>
+            <div>
+              <h2>Pedidos360</h2>
+              <span className="brand-sub">E-Commerce Cloud Native</span>
+            </div>
+          </div>
+
+          {/* Menú de Módulos */}
+          <nav className="nav-tabs">
+            <button
+              className={`nav-btn ${activeTab === 'tienda' ? 'active' : ''}`}
+              onClick={() => setActiveTab('tienda')}
+            >
+              🛍️ Tienda
+            </button>
+
+            <button
+              className={`nav-btn ${activeTab === 'carrito' ? 'active' : ''}`}
+              onClick={() => setActiveTab('carrito')}
+            >
+              🛒 Carrito {cart.length > 0 && <span className="cart-badge">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
+            </button>
+
+            <button
+              className={`nav-btn ${activeTab === 'pedidos' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('pedidos');
+                loadOrders();
+              }}
+            >
+              📦 Mis Pedidos {orders.length > 0 && <span className="orders-badge">{orders.length}</span>}
+            </button>
+
+            <button
+              className={`nav-btn ${activeTab === 'productos' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('productos');
+                loadProducts();
+              }}
+            >
+              🏷️ Productos (CRUD)
+            </button>
+
+            <button
+              className={`nav-btn ${activeTab === 'usuarios' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('usuarios');
+                loadUsers();
+              }}
+            >
+              👥 Usuarios (CRUD)
+            </button>
+          </nav>
+        </div>
+
+        {/* Perfil y Salir */}
+        <div className="nav-right">
+          <div className="user-profile-badge">
+            <div className="avatar-circle">
+              {(currentAccount?.name || currentAccount?.username || 'U').charAt(0).toUpperCase()}
+            </div>
+            <div className="user-info">
+              <span className="user-name">{currentAccount?.name || currentAccount?.username}</span>
+              <span className="user-tenant">Entra ID Verificado</span>
+            </div>
+          </div>
+          <button className="btn-logout" onClick={handleLogout} title="Cerrar sesión">
+            🚪 Salir
+          </button>
         </div>
       </header>
 
-      <main className="container">
-        {/* Configuración de Endpoint Base */}
-        <section className="card config-card">
-          <div className="config-header">
-            <h3>🔗 Configuración de API Gateway / Backend</h3>
-            <span className="badge-gateway">
-              {apiBaseUrl.includes('amazonaws.com') ? 'AWS API Gateway' : 'Localhost / Directo'}
-            </span>
-          </div>
-          <div className="gateway-input-group">
-            <label htmlFor="apiBase">URL Base del API:</label>
-            <input
-              id="apiBase"
-              type="text"
-              value={apiBaseUrl}
-              onChange={(e) => setApiBaseUrl(e.target.value)}
-              placeholder="https://xxx.execute-api.us-east-1.amazonaws.com/desarrollo"
-            />
-          </div>
-          {tokenPreview && (
-            <div className="token-preview">
-              <small><strong>Token JWT activo:</strong> <code>{tokenPreview}</code></small>
+      {/* CONTENIDO PRINCIPAL */}
+      <main className="ecom-main">
+        {/* ==================== VISTA 1: TIENDA / CATÁLOGO ==================== */}
+        {activeTab === 'tienda' && (
+          <div className="store-view">
+            <div className="store-hero">
+              <div>
+                <h2>Catálogo de Productos</h2>
+                <p>Selecciona los productos y simula compras conectadas al microservicio de pedidos.</p>
+              </div>
+              <div className="search-bar">
+                <input
+                  type="text"
+                  placeholder="Buscar producto por nombre..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
-          )}
-        </section>
 
-        {error && (
-          <div className="alert alert-error">
-            <strong>⚠️ Atención:</strong> {error}
+            {/* Filtros de Categoría */}
+            <div className="category-filters">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  className={`cat-pill ${selectedCategory === cat ? 'active' : ''}`}
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Grilla de Productos */}
+            <div className="products-showcase">
+              {filteredProducts.map((p) => (
+                <div key={p.id} className="store-product-card">
+                  <div className="card-icon">{p.icon || '📦'}</div>
+                  <span className="card-category">{p.category}</span>
+                  <h3 className="card-title">{p.name}</h3>
+                  <div className="card-footer">
+                    <div>
+                      <div className="card-price">${p.price?.toFixed(2)}</div>
+                      <small className="card-stock">Stock: {p.stock} uds.</small>
+                    </div>
+                    <button className="btn-add-cart" onClick={() => addToCart(p)}>
+                      + Añadir
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Panel de Operaciones */}
-        <section className="card actions-card">
-          <h3>⚡ Microservicios Disponibles (Protegidos con JWT de Azure)</h3>
-          <p className="hint">
-            Haz clic en cada botón para solicitar datos al microservicio correspondiente a través de la ruta del API Gateway.
-          </p>
+        {/* ==================== VISTA 2: CARRITO & CHECKOUT ==================== */}
+        {activeTab === 'carrito' && (
+          <div className="cart-view">
+            <h2>🛒 Carrito de Compras</h2>
+            {cart.length === 0 ? (
+              <div className="empty-cart-box">
+                <span className="empty-icon">🛒</span>
+                <h3>Tu carrito está vacío</h3>
+                <p>Explora la tienda y añade artículos para simular tu compra.</p>
+                <button className="btn-primary" onClick={() => setActiveTab('tienda')}>
+                  Ir a la Tienda
+                </button>
+              </div>
+            ) : (
+              <div className="cart-layout">
+                {/* Lista de Ítems */}
+                <div className="cart-items-list">
+                  {cart.map((item) => (
+                    <div key={item.id} className="cart-item-row">
+                      <div className="item-icon">{item.icon || '📦'}</div>
+                      <div className="item-details">
+                        <h4>{item.name}</h4>
+                        <span className="item-cat">{item.category}</span>
+                        <div className="item-unit-price">${item.price?.toFixed(2)} c/u</div>
+                      </div>
+                      <div className="item-qty-controls">
+                        <button className="qty-btn" onClick={() => updateCartQty(item.id, -1)}>
+                          -
+                        </button>
+                        <span className="qty-number">{item.qty}</span>
+                        <button className="qty-btn" onClick={() => updateCartQty(item.id, 1)}>
+                          +
+                        </button>
+                      </div>
+                      <div className="item-subtotal">${(item.price * item.qty).toFixed(2)}</div>
+                      <button className="btn-remove-item" onClick={() => updateCartQty(item.id, -item.qty)}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
 
-          <div className="action-buttons">
-            <button
-              className={`btn-service ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={handleFetchOrders}
-              disabled={loading || !isAuthenticated}
-            >
-              📦 1. Pedidos (Orders)
-              <small>/api/orders</small>
-            </button>
+                {/* Resumen de Compra */}
+                <div className="cart-summary-card">
+                  <h3>Resumen del Pedido</h3>
+                  <div className="summary-line">
+                    <span>Subtotal</span>
+                    <strong>${cartTotal.toFixed(2)}</strong>
+                  </div>
+                  <div className="summary-line">
+                    <span>Envío Cloud Native</span>
+                    <strong className="free-tag">GRATIS</strong>
+                  </div>
+                  <div className="summary-line">
+                    <span>Impuestos incluidos</span>
+                    <span>$0.00</span>
+                  </div>
+                  <hr />
+                  <div className="summary-line total-line">
+                    <span>Total a Pagar</span>
+                    <strong>${cartTotal.toFixed(2)}</strong>
+                  </div>
 
-            <button
-              className={`btn-service ${activeTab === 'products' ? 'active' : ''}`}
-              onClick={handleFetchProducts}
-              disabled={loading || !isAuthenticated}
-            >
-              🏷️ 2. Productos (Products)
-              <small>/api/products</small>
-            </button>
+                  <div className="payment-select-box">
+                    <label>Método de Pago:</label>
+                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                      <option>Tarjeta de Crédito / Débito</option>
+                      <option>Transferencia Bancaria Electrónica</option>
+                      <option>Microsoft Pay (Simulado)</option>
+                    </select>
+                  </div>
 
-            <button
-              className={`btn-service ${activeTab === 'users' ? 'active' : ''}`}
-              onClick={handleFetchUsers}
-              disabled={loading || !isAuthenticated}
-            >
-              👥 3. Usuarios (Users)
-              <small>/api/users/me</small>
-            </button>
+                  <button className="btn-checkout" onClick={handleCheckout} disabled={loading}>
+                    {loading ? 'Procesando en API Gateway...' : '🚀 Confirmar y Simular Compra'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+        )}
 
-          <div className="public-actions">
-            <span>Pruebas de conectividad pública (sin JWT):</span>
-            <button className="btn-outline" onClick={() => handleFetchPublic('orders')} disabled={loading}>
-              /api/orders/public
-            </button>
-            <button className="btn-outline" onClick={() => handleFetchPublic('products')} disabled={loading}>
-              /api/products/public
-            </button>
-            <button className="btn-outline" onClick={() => handleFetchPublic('users')} disabled={loading}>
-              /api/users/public
-            </button>
-          </div>
-        </section>
-
-        {/* Resultados */}
-        <section className="card results-card">
-          <div className="tabs">
-            <button
-              className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={() => setActiveTab('orders')}
-            >
-              Pedidos ({orders ? (Array.isArray(orders) ? orders.length : '1') : 0})
-            </button>
-            <button
-              className={`tab ${activeTab === 'products' ? 'active' : ''}`}
-              onClick={() => setActiveTab('products')}
-            >
-              Productos ({productsData?.products?.length || 0})
-            </button>
-            <button
-              className={`tab ${activeTab === 'users' ? 'active' : ''}`}
-              onClick={() => setActiveTab('users')}
-            >
-              Perfil Usuario ({userData ? '1' : 0})
-            </button>
-            <button
-              className={`tab ${activeTab === 'public' ? 'active' : ''}`}
-              onClick={() => setActiveTab('public')}
-            >
-              Respuesta Pública
-            </button>
-          </div>
-
-          <div className="tab-content">
-            {loading && <div className="loader">Consultando microservicio...</div>}
-
-            {/* TAB: ORDERS */}
-            {activeTab === 'orders' && !loading && (
+        {/* ==================== VISTA 3: MIS PEDIDOS ==================== */}
+        {activeTab === 'pedidos' && (
+          <div className="orders-view">
+            <div className="view-header">
               <div>
-                {!orders ? (
-                  <p className="empty-msg">Inicia sesión y presiona "1. Pedidos (Orders)" para ver tus pedidos.</p>
-                ) : (
-                  <div className="table-responsive">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>ID</th>
-                          <th>Artículo</th>
-                          <th>Cantidad</th>
-                          <th>Usuario asignado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Array.isArray(orders) ? (
-                          orders.map((o, idx) => (
-                            <tr key={idx}>
-                              <td><strong>#{o.id}</strong></td>
-                              <td>{o.item}</td>
-                              <td><span className="badge-qty">{o.qty}</span></td>
-                              <td><code>{o.user}</code></td>
-                            </tr>
+                <h2>📦 Historial de Pedidos</h2>
+                <p>Pedidos registrados en el microservicio de órdenes tras simular compras en el carrito.</p>
+              </div>
+              <button className="btn-secondary" onClick={loadOrders}>
+                🔄 Actualizar
+              </button>
+            </div>
+
+            {orders.length === 0 ? (
+              <p className="empty-box">Aún no has realizado compras. Agrega productos al carrito y simula una compra.</p>
+            ) : (
+              <div className="orders-grid">
+                {orders.map((o) => (
+                  <div key={o.id} className="order-card">
+                    <div className="order-card-header">
+                      <div>
+                        <strong>{o.orderNumber || `PED-${o.id}`}</strong>
+                        <div className="order-date">{o.createdAt || 'Reciente'}</div>
+                      </div>
+                      <span className={`status-tag ${o.status?.toLowerCase()}`}>{o.status || 'CONFIRMADO'}</span>
+                    </div>
+
+                    <div className="order-user-tag">👤 Cliente: {o.user}</div>
+
+                    <div className="order-items-preview">
+                      <strong>Artículos:</strong>
+                      <ul>
+                        {Array.isArray(o.items) ? (
+                          o.items.map((it, idx) => (
+                            <li key={idx}>
+                              {it.name} x {it.qty} {it.price && `($${(it.price * it.qty).toFixed(2)})`}
+                            </li>
                           ))
                         ) : (
-                          <tr><td colSpan="4"><pre>{JSON.stringify(orders, null, 2)}</pre></td></tr>
+                          <li>{JSON.stringify(o.items)}</li>
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB: PRODUCTS */}
-            {activeTab === 'products' && !loading && (
-              <div>
-                {!productsData ? (
-                  <p className="empty-msg">Inicia sesión y presiona "2. Productos (Products)" para cargar el catálogo.</p>
-                ) : (
-                  <div>
-                    <div className="service-meta">
-                      <span>👤 Solicitado por: <strong>{productsData.consultedBy}</strong></span>
-                      <span>📊 Total productos: <strong>{productsData.totalProducts}</strong></span>
+                      </ul>
                     </div>
-                    <div className="products-grid">
-                      {productsData.products?.map((p) => (
-                        <div key={p.id} className="product-card">
-                          <h4>{p.name}</h4>
-                          <p className="price">${p.price?.toFixed(2)}</p>
-                          <span className="stock">Stock disponible: {p.stock}</span>
-                        </div>
-                      ))}
+
+                    <div className="order-card-footer">
+                      <span>Total Facturado:</span>
+                      <strong>${typeof o.total === 'number' ? o.total.toFixed(2) : o.total}</strong>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB: USERS */}
-            {activeTab === 'users' && !loading && (
-              <div>
-                {!userData ? (
-                  <p className="empty-msg">Inicia sesión y presiona "3. Usuarios (Users)" para ver los claims de identidad.</p>
-                ) : (
-                  <div className="profile-details">
-                    <p><strong>Nombre:</strong> {userData.name || 'No especificado'}</p>
-                    <p><strong>Usuario / Email:</strong> {userData.preferred_username || userData.email || 'N/A'}</p>
-                    <p><strong>Subject (Azure Sub ID):</strong> <code>{userData.subject}</code></p>
-                    <p><strong>Emisor (Issuer):</strong> <code>{userData.issuer}</code></p>
-                    <p><strong>Expira:</strong> {userData.expiresAt}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB: PUBLIC */}
-            {activeTab === 'public' && !loading && (
-              <div>
-                {!publicResponse ? (
-                  <p className="empty-msg">Selecciona una de las pruebas públicas sin token para verificar conectividad.</p>
-                ) : (
-                  <div className="json-box">
-                    <h4>Respuesta de: <code>/api/{publicResponse.service}/public</code></h4>
-                    <pre>{JSON.stringify(publicResponse.data, null, 2)}</pre>
-                  </div>
-                )}
+                ))}
               </div>
             )}
           </div>
-        </section>
+        )}
+
+        {/* ==================== VISTA 4: CRUD PRODUCTOS ==================== */}
+        {activeTab === 'productos' && (
+          <div className="crud-view">
+            <div className="view-header">
+              <div>
+                <h2>🏷️ Gestión de Productos (CRUD)</h2>
+                <p>Crea, edita y elimina productos directamente en el microservicio `products`.</p>
+              </div>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setProductForm({ name: '', price: '', stock: '', category: 'Computación', icon: '📦' });
+                  setProductModal({ open: true, mode: 'create', data: null });
+                }}
+              >
+                + Nuevo Producto
+              </button>
+            </div>
+
+            <div className="table-card">
+              <table className="crud-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Icono</th>
+                    <th>Nombre</th>
+                    <th>Categoría</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((p) => (
+                    <tr key={p.id}>
+                      <td><strong>#{p.id}</strong></td>
+                      <td className="center-icon">{p.icon || '📦'}</td>
+                      <td><strong>{p.name}</strong></td>
+                      <td><span className="pill-category">{p.category}</span></td>
+                      <td className="price-text">${p.price?.toFixed(2)}</td>
+                      <td><span className="stock-badge">{p.stock} uds.</span></td>
+                      <td>
+                        <div className="action-cell">
+                          <button
+                            className="btn-edit"
+                            onClick={() => {
+                              setProductForm({
+                                name: p.name,
+                                price: p.price,
+                                stock: p.stock,
+                                category: p.category,
+                                icon: p.icon || '📦',
+                              });
+                              setProductModal({ open: true, mode: 'edit', data: p });
+                            }}
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button className="btn-delete" onClick={() => handleDeleteProduct(p.id)}>
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== VISTA 5: CRUD USUARIOS ==================== */}
+        {activeTab === 'usuarios' && (
+          <div className="crud-view">
+            <div className="view-header">
+              <div>
+                <h2>👥 Gestión de Usuarios (CRUD)</h2>
+                <p>Administra las cuentas de usuarios en el microservicio `users`.</p>
+              </div>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setUserForm({ name: '', email: '', role: 'CLIENTE', status: 'ACTIVO' });
+                  setUserModal({ open: true, mode: 'create', data: null });
+                }}
+              >
+                + Nuevo Usuario
+              </button>
+            </div>
+
+            <div className="table-card">
+              <table className="crud-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nombre Completo</th>
+                    <th>Correo Electrónico</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => (
+                    <tr key={u.id}>
+                      <td><strong>#{u.id}</strong></td>
+                      <td><strong>{u.name}</strong></td>
+                      <td><code>{u.email}</code></td>
+                      <td><span className={`role-pill ${u.role?.toLowerCase()}`}>{u.role}</span></td>
+                      <td><span className={`status-pill ${u.status?.toLowerCase()}`}>{u.status}</span></td>
+                      <td>
+                        <div className="action-cell">
+                          <button
+                            className="btn-edit"
+                            onClick={() => {
+                              setUserForm({
+                                name: u.name,
+                                email: u.email,
+                                role: u.role,
+                                status: u.status,
+                              });
+                              setUserModal({ open: true, mode: 'edit', data: u });
+                            }}
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button className="btn-delete" onClick={() => handleDeleteUser(u.id)}>
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* ==================== MODAL PRODUCTO (CREAR / EDITAR) ==================== */}
+      {productModal.open && (
+        <div className="modal-backdrop" onClick={() => setProductModal({ open: false })}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <h3>{productModal.mode === 'edit' ? '✏️ Editar Producto' : '✨ Nuevo Producto'}</h3>
+            <form onSubmit={handleSaveProduct}>
+              <div className="form-group">
+                <label>Nombre del Producto:</label>
+                <input
+                  required
+                  type="text"
+                  value={productForm.name}
+                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Precio ($):</label>
+                  <input
+                    required
+                    type="number"
+                    step="0.01"
+                    value={productForm.price}
+                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Stock:</label>
+                  <input
+                    required
+                    type="number"
+                    value={productForm.stock}
+                    onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Categoría:</label>
+                  <select
+                    value={productForm.category}
+                    onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                  >
+                    <option>Computación</option>
+                    <option>Monitores</option>
+                    <option>Accesorios</option>
+                    <option>Audio</option>
+                    <option>Mobiliario</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Icono Emoji:</label>
+                  <input
+                    type="text"
+                    value={productForm.icon}
+                    onChange={(e) => setProductForm({ ...productForm, icon: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setProductModal({ open: false })}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Guardando...' : 'Guardar Producto'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL USUARIO (CREAR / EDITAR) ==================== */}
+      {userModal.open && (
+        <div className="modal-backdrop" onClick={() => setUserModal({ open: false })}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <h3>{userModal.mode === 'edit' ? '✏️ Editar Usuario' : '👤 Nuevo Usuario'}</h3>
+            <form onSubmit={handleSaveUser}>
+              <div className="form-group">
+                <label>Nombre Completo:</label>
+                <input
+                  required
+                  type="text"
+                  value={userForm.name}
+                  onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Correo Electrónico:</label>
+                <input
+                  required
+                  type="email"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Rol:</label>
+                  <select
+                    value={userForm.role}
+                    onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                  >
+                    <option>CLIENTE</option>
+                    <option>VENDEDOR</option>
+                    <option>ADMIN</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Estado:</label>
+                  <select
+                    value={userForm.status}
+                    onChange={(e) => setUserForm({ ...userForm, status: e.target.value })}
+                  >
+                    <option>ACTIVO</option>
+                    <option>INACTIVO</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setUserModal({ open: false })}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Guardando...' : 'Guardar Usuario'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL COMPROBANTE DE COMPRA ==================== */}
+      {orderReceipt && (
+        <div className="modal-backdrop" onClick={() => setOrderReceipt(null)}>
+          <div className="modal-box receipt-box" onClick={(e) => e.stopPropagation()}>
+            <div className="receipt-header">
+              <span className="receipt-check">🎉</span>
+              <h3>¡Compra Simulada con Éxito!</h3>
+              <p>El pedido fue registrado en el microservicio de Órdenes mediante AWS API Gateway.</p>
+            </div>
+
+            <div className="receipt-details">
+              <p><strong>N° Pedido:</strong> <code>{orderReceipt.orderNumber}</code></p>
+              <p><strong>Cliente:</strong> {orderReceipt.user}</p>
+              <p><strong>Fecha:</strong> {orderReceipt.createdAt}</p>
+              <p><strong>Total Pagado:</strong> <span className="receipt-total">${orderReceipt.total?.toFixed(2)}</span></p>
+            </div>
+
+            <div className="modal-actions">
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setOrderReceipt(null);
+                  setActiveTab('pedidos');
+                }}
+              >
+                Ver Mis Pedidos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
