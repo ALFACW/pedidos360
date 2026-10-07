@@ -9,6 +9,8 @@ node_modules/
 **/node_modules/
 dist/
 **/dist/
+/frontend/.tsupgrader/runtime-validation/baseline-result.json
+/frontend/.tsupgrader/runtime-validation/postupgrade-result.json
 
 # IDE & OS
 .vscode/
