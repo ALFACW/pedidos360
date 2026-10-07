@@ -1,0 +1,57 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: pedidos360-orders
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/pedidos360db}
+    username: ${DB_USERNAME:pedidos360}
+    password: ${DB_PASSWORD:change-this-password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:pedidos360}
+    password: ${RABBITMQ_PASSWORD}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+      retry:
+        enabled: true
+        initial-interval: 1s
+        multiplier: 2
+        max-interval: 10s
+        max-attempts: 5
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 10s
+          max-attempts: 5
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/
+          tenant-id: e5372bf0-c5e3-4286-887c-79069f209c1f
+
+app:
+  security:
+    jwt:
+      audience: ${JWT_AUDIENCE:96aa35e3-1c70-4e36-8a41-0e1089f78df1}
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173,https://pedidos360-frontend.example.com
+
+logging:
+  level:
+    org.springframework.security: INFO

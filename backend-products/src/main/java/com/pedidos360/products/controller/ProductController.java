@@ -1,42 +1,29 @@
 package com.pedidos360.products.controller;
 
+import com.pedidos360.products.model.ProductEntity;
+import com.pedidos360.products.repository.ProductRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/products")
 public class ProductController {
 
-    private final Map<Long, Map<String, Object>> productStore = new ConcurrentHashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(100);
+    private final ProductRepository productRepository;
 
-    public ProductController() {
-        // Catálogo inicial de productos para la tienda
-        seedProduct("Laptop Gamer Asus ROG Strix", 1299.99, 15, "Computación", "💻");
-        seedProduct("Monitor LG UltraWide 34'' Curvo", 449.99, 8, "Monitores", "🖥️");
-        seedProduct("Teclado Mecánico Keychron K2", 89.99, 25, "Accesorios", "⌨️");
-        seedProduct("Mouse Inalámbrico Logitech MX Master 3", 99.99, 30, "Accesorios", "🖱️");
-        seedProduct("Auriculares HyperX Cloud II Wireless", 79.99, 20, "Audio", "🎧");
-        seedProduct("Silla Gamer Ergonómica ThunderX3", 219.99, 12, "Mobiliario", "🪑");
-    }
-
-    private void seedProduct(String name, double price, int stock, String category, String icon) {
-        long id = idGenerator.incrementAndGet();
-        Map<String, Object> p = new HashMap<>();
-        p.put("id", id);
-        p.put("name", name);
-        p.put("price", price);
-        p.put("stock", stock);
-        p.put("category", category);
-        p.put("icon", icon);
-        productStore.put(id, p);
+    public ProductController(ProductRepository productRepository) {
+        this.productRepository = productRepository;
     }
 
     @GetMapping("/public")
@@ -47,61 +34,85 @@ public class ProductController {
                 "message", "Catálogo público de productos disponible"));
     }
 
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> health() {
+        return ResponseEntity.ok(Map.of(
+                "status", "UP",
+                "service", "products-service",
+                "timestamp", Instant.now().toString(),
+                "publicEndpoint", "/api/products/public"));
+    }
+
     // READ ALL
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> listAll(@AuthenticationPrincipal Jwt jwt) {
-        List<Map<String, Object>> list = new ArrayList<>(productStore.values());
-        list.sort(Comparator.comparingLong(p -> (Long) p.get("id")));
+        List<Map<String, Object>> list = new ArrayList<>(
+                productRepository.findAll().stream().map(this::toResponse).toList());
+        list.sort(Comparator.comparingLong(p -> ((Number) p.get("id")).longValue()));
         return ResponseEntity.ok(list);
     }
 
     // READ ONE
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable Long id) {
-        Map<String, Object> product = productStore.get(id);
+        ProductEntity product = productRepository.findById(Math.toIntExact(id)).orElse(null);
         if (product == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Producto no encontrado"));
         }
-        return ResponseEntity.ok(product);
+        return ResponseEntity.ok(toResponse(product));
     }
 
     // CREATE
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body, @AuthenticationPrincipal Jwt jwt) {
-        long newId = idGenerator.incrementAndGet();
-        Map<String, Object> newProduct = new HashMap<>(body);
-        newProduct.put("id", newId);
-        if (!newProduct.containsKey("icon") || newProduct.get("icon") == null) {
-            newProduct.put("icon", "📦");
-        }
-        productStore.put(newId, newProduct);
-        return ResponseEntity.status(HttpStatus.CREATED).body(newProduct);
+        ProductEntity product = new ProductEntity();
+        product.setName((String) body.get("name"));
+        product.setPrice(new BigDecimal(body.get("price").toString()));
+        product.setStock(((Number) body.get("stock")).intValue());
+        product.setCategory((String) body.get("category"));
+        product.setIcon(body.get("icon") == null ? "📦" : body.get("icon").toString());
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(productRepository.save(product)));
     }
 
     // UPDATE
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        if (!productStore.containsKey(id)) {
+        ProductEntity product = productRepository.findById(Math.toIntExact(id)).orElse(null);
+        if (product == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Producto no encontrado"));
         }
-        Map<String, Object> product = productStore.get(id);
-        if (body.containsKey("name")) product.put("name", body.get("name"));
-        if (body.containsKey("price")) product.put("price", body.get("price"));
-        if (body.containsKey("stock")) product.put("stock", body.get("stock"));
-        if (body.containsKey("category")) product.put("category", body.get("category"));
-        if (body.containsKey("icon")) product.put("icon", body.get("icon"));
-
-        productStore.put(id, product);
-        return ResponseEntity.ok(product);
+        if (body.containsKey("name"))
+            product.setName((String) body.get("name"));
+        if (body.containsKey("price"))
+            product.setPrice(new BigDecimal(body.get("price").toString()));
+        if (body.containsKey("stock"))
+            product.setStock(((Number) body.get("stock")).intValue());
+        if (body.containsKey("category"))
+            product.setCategory((String) body.get("category"));
+        if (body.containsKey("icon"))
+            product.setIcon((String) body.get("icon"));
+        return ResponseEntity.ok(toResponse(productRepository.save(product)));
     }
 
     // DELETE
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
-        Map<String, Object> removed = productStore.remove(id);
-        if (removed == null) {
+        ProductEntity product = productRepository.findById(Math.toIntExact(id)).orElse(null);
+        if (product == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Producto no encontrado"));
         }
+        productRepository.delete(product);
         return ResponseEntity.ok(Map.of("message", "Producto eliminado con éxito", "id", id));
+    }
+
+    private Map<String, Object> toResponse(ProductEntity product) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("id", product.getId());
+        response.put("name", product.getName());
+        response.put("price", product.getPrice());
+        response.put("stock", product.getStock());
+        response.put("category", product.getCategory());
+        response.put("icon", product.getIcon());
+        return response;
     }
 }

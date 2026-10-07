@@ -1,3 +1,5 @@
+
+
 -- =====================================================================
 -- PEDIDOS360 - ESQUEMA DE BASE DE DATOS RELACIONAL (POSTGRESQL - AWS RDS)
 -- Base de datos: pedidos360db
@@ -26,12 +28,47 @@ CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
     order_number VARCHAR(50) UNIQUE NOT NULL,
     username VARCHAR(150) NOT NULL,
+    customer_email VARCHAR(254),
     items JSONB NOT NULL,
     total NUMERIC(10, 2) NOT NULL,
     payment_method VARCHAR(100) DEFAULT 'Tarjeta de Crédito / Débito',
     status VARCHAR(50) NOT NULL DEFAULT 'CONFIRMADO',
+    payment_status VARCHAR(30),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(30);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email VARCHAR(254);
+
+CREATE TABLE IF NOT EXISTS order_outbox (
+    event_id VARCHAR(120) PRIMARY KEY,
+    order_id INTEGER NOT NULL UNIQUE REFERENCES orders(id),
+    event_type VARCHAR(80) NOT NULL,
+    payload JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    published_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_outbox_pending
+    ON order_outbox (created_at)
+    WHERE published_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS payment_inbox (
+    event_id VARCHAR(120) PRIMARY KEY,
+    received_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    event_id VARCHAR(120) PRIMARY KEY,
+    event_type VARCHAR(80) NOT NULL,
+    order_number VARCHAR(50) NOT NULL,
+    customer VARCHAR(150) NOT NULL,
+    customer_email VARCHAR(254),
+    result VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS customer_email VARCHAR(254);
 
 -- =====================================================================
 -- DATOS INICIALES (SEMILLA)

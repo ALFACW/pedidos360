@@ -4,12 +4,28 @@ server:
 spring:
   application:
     name: products-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/pedidos360db}
+    username: ${DB_USERNAME:pedidos360}
+    password: ${DB_PASSWORD:change-this-password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
   security:
     oauth2:
       resourceserver:
         jwt:
           issuer-uri: https://login.microsoftonline.com/
           tenant-id: e5372bf0-c5e3-4286-887c-79069f209c1f
+
+app:
+  security:
+    jwt:
+      audience: ${JWT_AUDIENCE:96aa35e3-1c70-4e36-8a41-0e1089f78df1}
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173,https://pedidos360-frontend.example.com
 
 logging:
   level:

@@ -16,6 +16,8 @@ dist/
 .vscode/
 .idea/
 *.iml
+.env
+frontend/.env.production
 .DS_Store
 Thumbs.db
 

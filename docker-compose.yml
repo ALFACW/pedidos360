@@ -1,58 +1,138 @@
-version: '3.8'
+name: pedidos360-backend
 
 networks:
   pedidos360-net:
     driver: bridge
 
+volumes:
+  rabbitmq_data:
+
 services:
-  orders-service:
-    image: eclipse-temurin:17-jre-alpine
-    container_name: pedidos360-orders
+  rabbitmq:
+    image: rabbitmq:3-management
     restart: unless-stopped
-    command: ["java", "-Xmx128m", "-jar", "/app/app.jar"]
+    ports:
+      - "127.0.0.1:15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
     volumes:
-      - /home/ec2-user/apps/orders.jar:/app/app.jar:ro
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      - pedidos360-net
+
+  orders-service:
+    build:
+      context: ./backend-orders
+    image: pedidos360/orders-service:local
+    restart: unless-stopped
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Set JWT_AUDIENCE in .env}
+      DB_URL: ${DB_URL:?Set DB_URL in .env}
+      DB_USERNAME: ${DB_USERNAME:?Set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      APP_CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:?Set FRONTEND_ORIGIN in .env}
     ports:
       - "8080:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     networks:
       - pedidos360-net
 
   products-service:
-    image: eclipse-temurin:17-jre-alpine
-    container_name: pedidos360-products
+    build:
+      context: ./backend-products
+    image: pedidos360/products-service:local
     restart: unless-stopped
-    command: ["java", "-Xmx128m", "-jar", "/app/app.jar"]
-    volumes:
-      - /home/ec2-user/apps/products.jar:/app/app.jar:ro
+    environment:
+      DB_URL: ${DB_URL:?Set DB_URL in .env}
+      DB_USERNAME: ${DB_USERNAME:?Set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      APP_CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:?Set FRONTEND_ORIGIN in .env}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Set JWT_AUDIENCE in .env}
     ports:
       - "8081:8081"
     networks:
       - pedidos360-net
 
   users-service:
-    image: eclipse-temurin:17-jre-alpine
-    container_name: pedidos360-users
+    build:
+      context: ./backend-users
+    image: pedidos360/users-service:local
     restart: unless-stopped
-    command: ["java", "-Xmx128m", "-jar", "/app/app.jar"]
-    volumes:
-      - /home/ec2-user/apps/users.jar:/app/app.jar:ro
+    environment:
+      DB_URL: ${DB_URL:?Set DB_URL in .env}
+      DB_USERNAME: ${DB_USERNAME:?Set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      APP_CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:?Set FRONTEND_ORIGIN in .env}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Set JWT_AUDIENCE in .env}
     ports:
       - "8082:8082"
     networks:
       - pedidos360-net
 
-  frontend:
-    image: nginx:alpine
-    container_name: pedidos360-frontend
+  cart-service:
+    build:
+      context: ./backend-cart
+    image: pedidos360/cart-service:local
     restart: unless-stopped
+    environment:
+      APP_CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:?Set FRONTEND_ORIGIN in .env}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Set JWT_AUDIENCE in .env}
     ports:
-      - "80:80"
-    volumes:
-      - /var/www/pedidos360:/var/www/pedidos360:ro
-      - /home/ec2-user/docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - "8083:8083"
+    networks:
+      - pedidos360-net
+
+  payments-service:
+    build:
+      context: ./backend-payments
+    image: pedidos360/payments-service:local
+    restart: unless-stopped
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      DB_URL: ${DB_URL:?Set DB_URL in .env}
+      DB_USERNAME: ${DB_USERNAME:?Set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     depends_on:
-      - orders-service
-      - products-service
-      - users-service
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - pedidos360-net
+
+  notifications-service:
+    build:
+      context: ./backend-notifications
+    image: pedidos360/notifications-service:local
+    restart: unless-stopped
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      DB_URL: ${DB_URL:?Set DB_URL in .env}
+      DB_USERNAME: ${DB_USERNAME:?Set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@pedidos360.local}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_SMTP_STARTTLS: ${MAIL_SMTP_STARTTLS:-false}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     networks:
       - pedidos360-net

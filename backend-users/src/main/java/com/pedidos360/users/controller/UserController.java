@@ -1,39 +1,28 @@
 package com.pedidos360.users.controller;
 
+import com.pedidos360.users.model.UserEntity;
+import com.pedidos360.users.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
 
-    private final Map<Long, Map<String, Object>> userStore = new ConcurrentHashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(0);
+    private final UserRepository userRepository;
 
-    public UserController() {
-        seedUser("Diego Carrillo", "diegocarrillo.cw@gmail.com", "ADMIN", "ACTIVO");
-        seedUser("Profesor Evaluador", "evaluador@duocuc.cl", "ADMIN", "ACTIVO");
-        seedUser("Camila González", "c.gonzalez@pedidos360.com", "VENDEDOR", "ACTIVO");
-        seedUser("Andrés Silva", "a.silva@cliente.cl", "CLIENTE", "ACTIVO");
-        seedUser("Valentina Morales", "v.morales@cliente.cl", "CLIENTE", "INACTIVO");
-    }
-
-    private void seedUser(String name, String email, String role, String status) {
-        long id = idGenerator.incrementAndGet();
-        Map<String, Object> u = new HashMap<>();
-        u.put("id", id);
-        u.put("name", name);
-        u.put("email", email);
-        u.put("role", role);
-        u.put("status", status);
-        userStore.put(id, u);
+    public UserController(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/public")
@@ -44,10 +33,19 @@ public class UserController {
                 "message", "Servicio de usuarios disponible públicamente"));
     }
 
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> health() {
+        return ResponseEntity.ok(Map.of(
+                "status", "UP",
+                "service", "users-service",
+                "timestamp", Instant.now().toString(),
+                "publicEndpoint", "/api/users/public"));
+    }
+
     // READ ME (Profile from token)
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
-        Map<String, Object> profile = new HashMap<>();
+        Map<String, Object> profile = new LinkedHashMap<>();
         profile.put("subject", jwt.getSubject());
         profile.put("name", jwt.getClaimAsString("name"));
         profile.put("preferred_username", jwt.getClaimAsString("preferred_username"));
@@ -61,60 +59,81 @@ public class UserController {
     // READ ALL
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> listAll(@AuthenticationPrincipal Jwt jwt) {
-        List<Map<String, Object>> list = new ArrayList<>(userStore.values());
-        list.sort(Comparator.comparingLong(u -> (Long) u.get("id")));
+        List<Map<String, Object>> list = new ArrayList<>(
+                userRepository.findAll().stream().map(this::toResponse).toList());
+        list.sort(Comparator.comparingLong(user -> ((Number) user.get("id")).longValue()));
         return ResponseEntity.ok(list);
     }
 
     // READ ONE
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable Long id) {
-        Map<String, Object> user = userStore.get(id);
+        UserEntity user = userRepository.findById(Math.toIntExact(id)).orElse(null);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Usuario no encontrado"));
         }
-        return ResponseEntity.ok(user);
+        return ResponseEntity.ok(toResponse(user));
     }
 
     // CREATE
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body, @AuthenticationPrincipal Jwt jwt) {
-        long newId = idGenerator.incrementAndGet();
-        Map<String, Object> newUser = new HashMap<>(body);
-        newUser.put("id", newId);
-        if (!newUser.containsKey("status") || newUser.get("status") == null) {
-            newUser.put("status", "ACTIVO");
+        String email = body.get("email") == null ? "" : body.get("email").toString();
+        if (email.isBlank() || body.get("name") == null || body.get("name").toString().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Nombre y correo son obligatorios"));
         }
-        if (!newUser.containsKey("role") || newUser.get("role") == null) {
-            newUser.put("role", "CLIENTE");
+        if (userRepository.existsByEmail(email)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "El correo ya existe"));
         }
-        userStore.put(newId, newUser);
-        return ResponseEntity.status(HttpStatus.CREATED).body(newUser);
+        UserEntity user = new UserEntity();
+        user.setName(body.get("name").toString());
+        user.setEmail(email);
+        user.setRole(body.get("role") == null ? "CLIENTE" : body.get("role").toString());
+        user.setStatus(body.get("status") == null ? "ACTIVO" : body.get("status").toString());
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(userRepository.save(user)));
     }
 
     // UPDATE
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        if (!userStore.containsKey(id)) {
+        UserEntity user = userRepository.findById(Math.toIntExact(id)).orElse(null);
+        if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Usuario no encontrado"));
         }
-        Map<String, Object> user = userStore.get(id);
-        if (body.containsKey("name")) user.put("name", body.get("name"));
-        if (body.containsKey("email")) user.put("email", body.get("email"));
-        if (body.containsKey("role")) user.put("role", body.get("role"));
-        if (body.containsKey("status")) user.put("status", body.get("status"));
-
-        userStore.put(id, user);
-        return ResponseEntity.ok(user);
+        if (body.containsKey("name"))
+            user.setName((String) body.get("name"));
+        if (body.containsKey("email")) {
+            String email = (String) body.get("email");
+            if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "El correo ya existe"));
+            }
+            user.setEmail(email);
+        }
+        if (body.containsKey("role"))
+            user.setRole((String) body.get("role"));
+        if (body.containsKey("status"))
+            user.setStatus((String) body.get("status"));
+        return ResponseEntity.ok(toResponse(userRepository.save(user)));
     }
 
     // DELETE
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
-        Map<String, Object> removed = userStore.remove(id);
-        if (removed == null) {
+        UserEntity user = userRepository.findById(Math.toIntExact(id)).orElse(null);
+        if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Usuario no encontrado"));
         }
+        userRepository.delete(user);
         return ResponseEntity.ok(Map.of("message", "Usuario eliminado con éxito", "id", id));
+    }
+
+    private Map<String, Object> toResponse(UserEntity user) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("id", user.getId());
+        response.put("name", user.getName());
+        response.put("email", user.getEmail());
+        response.put("role", user.getRole());
+        response.put("status", user.getStatus());
+        return response;
     }
 }

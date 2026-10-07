@@ -19,4 +19,12 @@ public class CartController {
                 Map.of("productId", 2, "name", "Pantalon", "qty", 1));
         return ResponseEntity.ok(sample);
     }
+
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> health() {
+        return ResponseEntity.ok(Map.of(
+                "status", "UP",
+                "service", "cart-service",
+                "timestamp", java.time.LocalDateTime.now().toString()));
+    }
 }
