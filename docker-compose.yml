@@ -27,10 +27,10 @@ services:
     networks:
       - pedidos360-net
 
-  orders-service:
+  ms-pedidos:
     build:
       context: ./backend-orders
-    image: pedidos360/orders-service:local
+    image: pedidos360/ms-pedidos:local
     restart: unless-stopped
     environment:
       RABBITMQ_HOST: rabbitmq
@@ -50,10 +50,10 @@ services:
     networks:
       - pedidos360-net
 
-  products-service:
+  ms-productos:
     build:
       context: ./backend-products
-    image: pedidos360/products-service:local
+    image: pedidos360/ms-productos:local
     restart: unless-stopped
     environment:
       DB_URL: ${DB_URL:?Set DB_URL in .env}
@@ -67,10 +67,10 @@ services:
     networks:
       - pedidos360-net
 
-  users-service:
+  ms-usuarios:
     build:
       context: ./backend-users
-    image: pedidos360/users-service:local
+    image: pedidos360/ms-usuarios:local
     restart: unless-stopped
     environment:
       DB_URL: ${DB_URL:?Set DB_URL in .env}
@@ -84,10 +84,10 @@ services:
     networks:
       - pedidos360-net
 
-  cart-service:
+  ms-carrito:
     build:
       context: ./backend-cart
-    image: pedidos360/cart-service:local
+    image: pedidos360/ms-carrito:local
     restart: unless-stopped
     environment:
       APP_CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:?Set FRONTEND_ORIGIN in .env}
@@ -98,10 +98,10 @@ services:
     networks:
       - pedidos360-net
 
-  payments-service:
+  ms-pagos:
     build:
       context: ./backend-payments
-    image: pedidos360/payments-service:local
+    image: pedidos360/ms-pagos:local
     restart: unless-stopped
     environment:
       RABBITMQ_HOST: rabbitmq
@@ -116,10 +116,10 @@ services:
     networks:
       - pedidos360-net
 
-  notifications-service:
+  ms-notificaciones:
     build:
       context: ./backend-notifications
-    image: pedidos360/notifications-service:local
+    image: pedidos360/ms-notificaciones:local
     restart: unless-stopped
     environment:
       RABBITMQ_HOST: rabbitmq

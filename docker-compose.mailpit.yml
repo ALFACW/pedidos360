@@ -7,7 +7,7 @@ services:
     networks:
       - pedidos360-net
 
-  notifications-service:
+  ms-notificaciones:
     environment:
       MAIL_HOST: mailpit
       MAIL_PORT: "1025"

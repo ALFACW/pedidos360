@@ -9,7 +9,7 @@ services:
         VITE_AZURE_CLIENT_ID: ${VITE_AZURE_CLIENT_ID:?Set VITE_AZURE_CLIENT_ID in frontend environment file}
         VITE_AZURE_TENANT_ID: ${VITE_AZURE_TENANT_ID:?Set VITE_AZURE_TENANT_ID in frontend environment file}
         VITE_API_SCOPE: ${VITE_API_SCOPE:?Set VITE_API_SCOPE in frontend environment file}
-    image: pedidos360/frontend:local
+    image: pedidos360/interfaz-web:local
     restart: unless-stopped
     ports:
       - "80:80"
