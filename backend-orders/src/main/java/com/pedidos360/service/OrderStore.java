@@ -5,6 +5,7 @@ import com.pedidos360.model.OrderEntity;
 import com.pedidos360.model.OrderOutboxEntity;
 import com.pedidos360.repository.OrderOutboxRepository;
 import com.pedidos360.repository.OrderRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,10 +27,13 @@ public class OrderStore {
     private final OrderRepository orderRepository;
     private final OrderOutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
+    private final JdbcTemplate jdbcTemplate;
 
     public OrderStore(OrderRepository orderRepository,
             OrderOutboxRepository outboxRepository,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
         this.orderRepository = orderRepository;
         this.outboxRepository = outboxRepository;
         this.objectMapper = objectMapper;
@@ -83,6 +87,17 @@ public class OrderStore {
     }
 
     @Transactional(readOnly = true)
+    public List<Map<String, Object>> findByOwner(String ownerId) {
+        return orderRepository.findByOwnerId(ownerId).stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isOwnedBy(long orderId, String ownerId) {
+        return orderRepository.findById(Math.toIntExact(orderId))
+                .map(order -> ownerId != null && ownerId.equals(order.getOwnerId())).orElse(false);
+    }
+
+    @Transactional(readOnly = true)
     public Map<String, Object> findById(long orderId) {
         return orderRepository.findById(Math.toIntExact(orderId)).map(this::toResponse).orElse(null);
     }
@@ -93,10 +108,29 @@ public class OrderStore {
         if (order == null) {
             return false;
         }
+        boolean firstApproval = "APPROVED".equals(paymentStatus) && !"APPROVED".equals(order.getPaymentStatus());
         order.setPaymentStatus(paymentStatus);
         order.setStatus("APPROVED".equals(paymentStatus) ? "CONFIRMADO" : "PAGO_RECHAZADO");
         orderRepository.save(order);
+        if (firstApproval) {
+            decrementStock(order.getItems());
+        }
         return true;
+    }
+
+    // Descuenta el stock una sola vez, en la misma transaccion que confirma el pedido
+    private void decrementStock(List<Map<String, Object>> items) {
+        if (items == null) {
+            return;
+        }
+        for (Map<String, Object> item : items) {
+            Object id = item.get("id");
+            Object qty = item.get("qty");
+            if (id instanceof Number && qty instanceof Number) {
+                jdbcTemplate.update("UPDATE products SET stock = GREATEST(stock - ?, 0) WHERE id = ?",
+                        ((Number) qty).intValue(), ((Number) id).intValue());
+            }
+        }
     }
 
     private OrderEntity toEntity(Map<String, Object> order) {
@@ -104,6 +138,7 @@ public class OrderStore {
         entity.setOrderNumber(valueOr(order.get("orderNumber"), newOrderNumber()));
         entity.setUsername(valueOr(order.get("user"), "unknown"));
         entity.setCustomerEmail((String) order.get("customerEmail"));
+        entity.setOwnerId((String) order.get("ownerId"));
         entity.setItems(order.get("items") == null ? List.of()
                 : objectMapper.convertValue(
                         order.get("items"),
@@ -121,6 +156,8 @@ public class OrderStore {
         response.put("id", order.getId());
         response.put("orderNumber", order.getOrderNumber());
         response.put("user", order.getUsername());
+        response.put("customerEmail", order.getCustomerEmail());
+        response.put("ownerId", order.getOwnerId());
         response.put("items", order.getItems());
         response.put("total", order.getTotal());
         response.put("paymentMethod", order.getPaymentMethod());

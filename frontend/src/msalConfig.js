@@ -1,5 +1,8 @@
 import { LogLevel } from '@azure/msal-browser';
 
+const clientId = import.meta.env.VITE_AZURE_CLIENT_ID || '00000000-0000-0000-0000-000000000000';
+const apiScope = import.meta.env.VITE_API_SCOPE || `api://${clientId}/read-wirte`;
+
 const getRedirectUri = () => {
   if (typeof window === 'undefined') return '';
   const full = window.location.origin + window.location.pathname;
@@ -8,7 +11,7 @@ const getRedirectUri = () => {
 
 export const msalConfig = {
   auth: {
-    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '00000000-0000-0000-0000-000000000000',
+    clientId,
     authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AZURE_TENANT_ID || 'common'}`,
     redirectUri: getRedirectUri(),
     postLogoutRedirectUri: getRedirectUri(),
@@ -31,5 +34,5 @@ export const msalConfig = {
 };
 
 export const loginRequest = {
-  scopes: ['openid', 'profile', 'User.Read'],
+  scopes: [apiScope],
 };

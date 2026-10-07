@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import com.pedidos360.config.SecurityConfig;
 import com.pedidos360.service.OrderStore;
 
 import java.time.LocalDateTime;
@@ -59,8 +60,12 @@ public class OrderController {
     // LIST ORDERS
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> list(@AuthenticationPrincipal Jwt jwt) {
-        List<Map<String, Object>> list = orderStore.findAll();
-        list.sort((a, b) -> Long.compare((Long) b.get("id"), (Long) a.get("id"))); // más recientes primero
+        List<Map<String, Object>> list = SecurityConfig.isAdmin(jwt)
+                ? orderStore.findAll().stream()
+                        .filter(o -> !jwt.getSubject().equals(o.get("ownerId")))
+                        .collect(java.util.stream.Collectors.toList())
+                : orderStore.findByOwner(jwt.getSubject());
+        list.sort((a, b) -> Long.compare(((Number) b.get("id")).longValue(), ((Number) a.get("id")).longValue())); // más recientes primero
         return ResponseEntity.ok(list);
     }
 
@@ -84,6 +89,7 @@ public class OrderController {
         Map<String, Object> order = new HashMap<>(body);
         order.put("user", userName);
         order.put("customerEmail", customerEmail);
+        order.put("ownerId", jwt.getSubject());
         order.put("status", "PENDIENTE_PAGO");
         order.put("createdAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
 
@@ -102,7 +108,10 @@ public class OrderController {
 
     // GET BY ID
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(@PathVariable Long id) {
+    public ResponseEntity<?> getById(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        if (!SecurityConfig.isAdmin(jwt) && !orderStore.isOwnedBy(id, jwt.getSubject())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Pedido no encontrado"));
+        }
         Map<String, Object> order = orderStore.findById(id);
         if (order == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Pedido no encontrado"));

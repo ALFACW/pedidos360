@@ -50,6 +50,7 @@ public class UserController {
         profile.put("name", jwt.getClaimAsString("name"));
         profile.put("preferred_username", jwt.getClaimAsString("preferred_username"));
         profile.put("email", jwt.getClaimAsString("email"));
+        profile.put("admin", com.pedidos360.users.config.SecurityConfig.isAdmin(jwt));
         profile.put("issuer", jwt.getIssuer().toString());
         profile.put("issuedAt", jwt.getIssuedAt());
         profile.put("expiresAt", jwt.getExpiresAt());

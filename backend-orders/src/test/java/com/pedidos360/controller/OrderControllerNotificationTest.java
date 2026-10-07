@@ -50,4 +50,30 @@ class OrderControllerNotificationTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         verify(orderStore, never()).saveAndQueueOrderEvent(any());
     }
+
+    @Test
+    void clientOnlySeesOwnOrdersAndAdminSeesAll() {
+        Jwt client = Jwt.withTokenValue("t").header("alg", "none").subject("u1").build();
+        Jwt admin = Jwt.withTokenValue("t").header("alg", "none").subject("a1").claim("roles", java.util.List.of("Admin")).build();
+        when(orderStore.findByOwner("u1")).thenReturn(new java.util.ArrayList<>());
+        when(orderStore.findAll()).thenReturn(new java.util.ArrayList<>());
+
+        controller.list(client);
+        verify(orderStore).findByOwner("u1");
+        verify(orderStore, never()).findAll();
+
+        controller.list(admin);
+        verify(orderStore).findAll();
+    }
+
+    @Test
+    void clientCannotReadOrderOfAnotherUser() {
+        Jwt client = Jwt.withTokenValue("t").header("alg", "none").subject("u1").build();
+        when(orderStore.isOwnedBy(5L, "u1")).thenReturn(false);
+
+        var response = controller.getById(5L, client);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        verify(orderStore, never()).findById(5L);
+    }
 }

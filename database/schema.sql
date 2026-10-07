@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS orders (
 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(30);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email VARCHAR(254);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS owner_id VARCHAR(100);
 
 CREATE TABLE IF NOT EXISTS order_outbox (
     event_id VARCHAR(120) PRIMARY KEY,
@@ -84,7 +85,8 @@ INSERT INTO products (name, price, stock, category, icon) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO users (name, email, role, status) VALUES
-('Diego Carrillo', 'diego.carrilo@josecamposar.onmicrosoft.com', 'ADMIN', 'ACTIVO'),
+('Diego Carrillo', 'diego.carrilo@josecamposar.onmicrosoft.com', 'CLIENTE', 'ACTIVO'),
+('Diego Carrillo (Admin)', 'di.carrillow@duocuc.cl', 'ADMIN', 'ACTIVO'),
 ('Administrador Pedidos360', 'admin@pedidos360.internal', 'ADMIN', 'ACTIVO'),
 ('Vendedor Tienda', 'vendedor@pedidos360.internal', 'VENDEDOR', 'ACTIVO'),
 ('Cliente Frecuente', 'cliente@pedidos360.internal', 'CLIENTE', 'ACTIVO')

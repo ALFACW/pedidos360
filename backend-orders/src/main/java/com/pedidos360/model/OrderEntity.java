@@ -31,6 +31,9 @@ public class OrderEntity {
     @Column(name = "customer_email", length = 254)
     private String customerEmail;
 
+    @Column(name = "owner_id", length = 100)
+    private String ownerId;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "jsonb")
     private List<Map<String, Object>> items;
@@ -80,6 +83,14 @@ public class OrderEntity {
 
     public void setCustomerEmail(String customerEmail) {
         this.customerEmail = customerEmail;
+    }
+
+    public String getOwnerId() {
+        return ownerId;
+    }
+
+    public void setOwnerId(String ownerId) {
+        this.ownerId = ownerId;
     }
 
     public List<Map<String, Object>> getItems() {

@@ -6,6 +6,7 @@ function App() {
   const { instance, accounts } = useMsal();
   const isAuthenticated = accounts.length > 0;
   const currentAccount = accounts[0];
+  const [isAdmin, setIsAdmin] = useState((currentAccount?.idTokenClaims?.roles || []).includes('Admin'));
 
   // Navegación
   const [activeTab, setActiveTab] = useState('tienda'); // tienda | carrito | pedidos | productos | usuarios
@@ -36,6 +37,8 @@ function App() {
   const [decodedToken, setDecodedToken] = useState(null);
 
   // Formularios
+  const formatCLP = (value) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value) || 0);
+
   const [productForm, setProductForm] = useState({ name: '', price: '', stock: '', category: 'Computación', icon: '📦' });
   const [userForm, setUserForm] = useState({ name: '', email: '', role: 'CLIENTE', status: 'ACTIVO' });
   const [paymentMethod, setPaymentMethod] = useState('Tarjeta de Crédito / Débito');
@@ -46,7 +49,7 @@ function App() {
     setTimeout(() => setAlert(null), 4000);
   };
 
-  // Obtener Token de Azure (OIDC ID Token con Audience de Client ID y firma Entra ID)
+  // Access token de Entra ID emitido para el scope de la API
   const getAccessToken = async () => {
     if (!isAuthenticated) throw new Error('No has iniciado sesión');
     try {
@@ -54,14 +57,11 @@ function App() {
         account: currentAccount,
         scopes: loginRequest.scopes,
       });
-      return response.idToken || currentAccount?.idToken || response.accessToken;
+      return response.accessToken;
     } catch (err) {
-      console.warn('acquireTokenSilent fallo, usando idToken de la cuenta:', err);
-      if (currentAccount?.idToken) {
-        return currentAccount.idToken;
-      }
+      console.warn('acquireTokenSilent fallo, solicitando token por popup:', err);
       const popupResponse = await instance.acquireTokenPopup(loginRequest);
-      return popupResponse.idToken || popupResponse.accessToken;
+      return popupResponse.accessToken;
     }
   };
 
@@ -108,14 +108,34 @@ function App() {
     }
   };
 
+  // El backend decide quién es admin (rol de Entra o ADMIN_EMAILS)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        const usersApi = import.meta.env.VITE_USERS_API_BASE_URL || apiBaseUrl;
+        const res = await fetch(`${usersApi}/api/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) setIsAdmin(Boolean((await res.json()).admin));
+      } catch (e) {
+        console.warn('No se pudo determinar el rol:', e);
+      }
+    })();
+  }, [isAuthenticated, apiBaseUrl]);
   // Cargar datos cuando se autentica
   useEffect(() => {
     if (isAuthenticated) {
       loadProducts();
-      loadUsers();
       loadOrders();
     }
   }, [isAuthenticated, apiBaseUrl]);
+
+  // La lista de usuarios solo es accesible para Admin
+  useEffect(() => {
+    if (isAuthenticated && isAdmin) loadUsers();
+  }, [isAuthenticated, isAdmin, apiBaseUrl]);
 
   // ===================== CRUD PRODUCTOS =====================
   const loadProducts = async () => {
@@ -298,6 +318,9 @@ function App() {
       setCart([]);
       setOrderReceipt(newOrder);
       loadOrders();
+      loadProducts();
+      // El pago se confirma de forma asíncrona vía RabbitMQ: refrescar pedidos y stock
+      [1500, 4000, 8000].forEach((ms) => setTimeout(() => { loadOrders(); loadProducts(); }, ms));
       showAlert('¡Compra simulada y confirmada con éxito! 🎉');
     } catch (err) {
       showAlert('Error al procesar la compra: ' + err.message, 'error');
@@ -465,8 +488,12 @@ function App() {
                 loadOrders();
               }}
             >
-              📦 Mis Pedidos {orders.length > 0 && <span className="orders-badge">{orders.length}</span>}
+              📦 {isAdmin ? 'Pedidos de Clientes' : 'Mis Pedidos'} {orders.length > 0 && <span className="orders-badge">{orders.length}</span>}
             </button>
+
+            {isAdmin && (
+
+            <>
 
             <button
               className={`nav-btn ${activeTab === 'productos' ? 'active' : ''}`}
@@ -487,6 +514,10 @@ function App() {
             >
               👥 Usuarios (CRUD)
             </button>
+
+            </>
+
+            )}
           </nav>
         </div>
 
@@ -552,7 +583,7 @@ function App() {
                   <h3 className="card-title">{p.name}</h3>
                   <div className="card-footer">
                     <div>
-                      <div className="card-price">${p.price?.toFixed(2)}</div>
+                      <div className="card-price">{formatCLP(p.price)}</div>
                       <small className="card-stock">Stock: {p.stock} uds.</small>
                     </div>
                     <button className="btn-add-cart" onClick={() => addToCart(p)}>
@@ -588,7 +619,7 @@ function App() {
                       <div className="item-details">
                         <h4>{item.name}</h4>
                         <span className="item-cat">{item.category}</span>
-                        <div className="item-unit-price">${item.price?.toFixed(2)} c/u</div>
+                        <div className="item-unit-price">{formatCLP(item.price)} c/u</div>
                       </div>
                       <div className="item-qty-controls">
                         <button className="qty-btn" onClick={() => updateCartQty(item.id, -1)}>
@@ -599,7 +630,7 @@ function App() {
                           +
                         </button>
                       </div>
-                      <div className="item-subtotal">${(item.price * item.qty).toFixed(2)}</div>
+                      <div className="item-subtotal">{formatCLP(item.price * item.qty)}</div>
                       <button className="btn-remove-item" onClick={() => updateCartQty(item.id, -item.qty)}>
                         ✕
                       </button>
@@ -612,7 +643,7 @@ function App() {
                   <h3>Resumen del Pedido</h3>
                   <div className="summary-line">
                     <span>Subtotal</span>
-                    <strong>${cartTotal.toFixed(2)}</strong>
+                    <strong>{formatCLP(cartTotal)}</strong>
                   </div>
                   <div className="summary-line">
                     <span>Envío Cloud Native</span>
@@ -620,12 +651,12 @@ function App() {
                   </div>
                   <div className="summary-line">
                     <span>Impuestos incluidos</span>
-                    <span>$0.00</span>
+                    <span>{formatCLP(0)}</span>
                   </div>
                   <hr />
                   <div className="summary-line total-line">
                     <span>Total a Pagar</span>
-                    <strong>${cartTotal.toFixed(2)}</strong>
+                    <strong>{formatCLP(cartTotal)}</strong>
                   </div>
 
                   <div className="payment-select-box">
@@ -651,7 +682,7 @@ function App() {
           <div className="orders-view">
             <div className="view-header">
               <div>
-                <h2>📦 Historial de Pedidos</h2>
+                <h2>📦 {isAdmin ? 'Pedidos de Clientes' : 'Historial de Pedidos'}</h2>
                 <p>Pedidos registrados en el microservicio de órdenes tras simular compras en el carrito.</p>
               </div>
               <button className="btn-secondary" onClick={loadOrders}>
@@ -660,7 +691,7 @@ function App() {
             </div>
 
             {orders.length === 0 ? (
-              <p className="empty-box">Aún no has realizado compras. Agrega productos al carrito y simula una compra.</p>
+              <p className="empty-box">{isAdmin ? 'Aún no hay pedidos de clientes.' : 'Aún no has realizado compras. Agrega productos al carrito y simula una compra.'}</p>
             ) : (
               <div className="orders-grid">
                 {orders.map((o) => (
@@ -673,7 +704,7 @@ function App() {
                       <span className={`status-tag ${o.status?.toLowerCase()}`}>{o.status || 'CONFIRMADO'}</span>
                     </div>
 
-                    <div className="order-user-tag">👤 Cliente: {o.user}</div>
+                    <div className="order-user-tag">👤 Cliente: {o.customerEmail || o.user}</div>
 
                     <div className="order-items-preview">
                       <strong>Artículos:</strong>
@@ -681,7 +712,7 @@ function App() {
                         {Array.isArray(o.items) ? (
                           o.items.map((it, idx) => (
                             <li key={idx}>
-                              {it.name} x {it.qty} {it.price && `($${(it.price * it.qty).toFixed(2)})`}
+                              {it.name} x {it.qty} {it.price && `(${formatCLP(it.price * it.qty)})`}
                             </li>
                           ))
                         ) : (
@@ -692,7 +723,7 @@ function App() {
 
                     <div className="order-card-footer">
                       <span>Total Facturado:</span>
-                      <strong>${typeof o.total === 'number' ? o.total.toFixed(2) : o.total}</strong>
+                      <strong>{formatCLP(o.total)}</strong>
                     </div>
                   </div>
                 ))}
@@ -702,7 +733,7 @@ function App() {
         )}
 
         {/* ==================== VISTA 4: CRUD PRODUCTOS ==================== */}
-        {activeTab === 'productos' && (
+        {isAdmin && activeTab === 'productos' && (
           <div className="crud-view">
             <div className="view-header">
               <div>
@@ -740,7 +771,7 @@ function App() {
                       <td className="center-icon">{p.icon || '📦'}</td>
                       <td><strong>{p.name}</strong></td>
                       <td><span className="pill-category">{p.category}</span></td>
-                      <td className="price-text">${p.price?.toFixed(2)}</td>
+                      <td className="price-text">{formatCLP(p.price)}</td>
                       <td><span className="stock-badge">{p.stock} uds.</span></td>
                       <td>
                         <div className="action-cell">
@@ -773,7 +804,7 @@ function App() {
         )}
 
         {/* ==================== VISTA 5: CRUD USUARIOS ==================== */}
-        {activeTab === 'usuarios' && (
+        {isAdmin && activeTab === 'usuarios' && (
           <div className="crud-view">
             <div className="view-header">
               <div>
@@ -893,14 +924,6 @@ function App() {
                     <option>Mobiliario</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Icono Emoji:</label>
-                  <input
-                    type="text"
-                    value={productForm.icon}
-                    onChange={(e) => setProductForm({ ...productForm, icon: e.target.value })}
-                  />
-                </div>
               </div>
 
               <div className="modal-actions">
@@ -993,7 +1016,7 @@ function App() {
               <p><strong>N° Pedido:</strong> <code>{orderReceipt.orderNumber}</code></p>
               <p><strong>Cliente:</strong> {orderReceipt.user}</p>
               <p><strong>Fecha:</strong> {orderReceipt.createdAt}</p>
-              <p><strong>Total Pagado:</strong> <span className="receipt-total">${orderReceipt.total?.toFixed(2)}</span></p>
+              <p><strong>Total Pagado:</strong> <span className="receipt-total">{formatCLP(orderReceipt.total)}</span></p>
             </div>
 
             <div className="modal-actions">

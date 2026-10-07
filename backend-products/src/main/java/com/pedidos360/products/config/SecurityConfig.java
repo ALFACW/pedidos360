@@ -3,6 +3,7 @@ package com.pedidos360.products.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -18,7 +19,14 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Configuration
 @EnableWebSecurity
@@ -69,6 +77,47 @@ public class SecurityConfig {
         return source;
     }
 
+    // Todo usuario autenticado es Cliente; es Admin si trae el rol de Entra ID o su correo está en ADMIN_EMAILS.
+    public static boolean isAdmin(Jwt jwt) {
+        List<String> roles = jwt.getClaimAsStringList("roles");
+        if (roles != null && roles.contains("Admin")) {
+            return true;
+        }
+        String adminEmails = System.getenv("ADMIN_EMAILS");
+        if (adminEmails == null || adminEmails.isBlank()) {
+            return false;
+        }
+        Set<String> admins = new java.util.HashSet<>();
+        for (String email : adminEmails.split(",")) {
+            admins.add(email.trim().toLowerCase());
+        }
+        for (String claim : new String[] {"email", "preferred_username", "upn"}) {
+            String value = jwt.getClaimAsString(claim);
+            if (value != null && admins.contains(value.trim().toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
+        Set<GrantedAuthority> authorities = new LinkedHashSet<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_Cliente"));
+        List<String> roles = jwt.getClaimAsStringList("roles");
+        if (roles != null) {
+            roles.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+        }
+        if (isAdmin(jwt)) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_Admin"));
+        }
+        return authorities;
+    }
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(SecurityConfig::extractAuthorities);
+        return converter;
+    }
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -76,9 +125,11 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/products/public", "/api/products/health").permitAll()
-                        .anyRequest().authenticated())
+                        .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**").authenticated()
+                        .anyRequest().hasRole("Admin"))
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.decoder(jwtDecoder())));
+                        .jwt(jwt -> jwt.decoder(jwtDecoder())
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
         return http.build();
     }
