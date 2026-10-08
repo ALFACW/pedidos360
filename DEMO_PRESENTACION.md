@@ -3,7 +3,7 @@
 ## Arquitectura
 
 ```
-Navegador ──HTTPS──► EC2 PÚBLICA  44.221.145.83  (Caddy: frontend + bastión SSH)
+Navegador ──► API Gateway pedidos360-frontend (etapa "desarrollo") ──► EC2 PÚBLICA  44.221.145.83  (Caddy: frontend + bastión SSH)
     │                     │ ssh con pedidos360-private.pem (chmod 400)
     │                     ▼
     └─► API Gateway pedidos360-api-v1 (etapa "desarrollo", JWT Entra ID, CORS solo frontend)
@@ -15,7 +15,8 @@ Navegador ──HTTPS──► EC2 PÚBLICA  44.221.145.83  (Caddy: frontend + b
                                               RDS PostgreSQL por VPC peering
 ```
 
-- Frontend: <https://44-221-145-83.nip.io>
+- Frontend (API Gateway del frontend, etapa desarrollo): <https://e3fc0mjbec.execute-api.us-east-1.amazonaws.com/desarrollo/>
+- Frontend (acceso directo HTTPS): <https://44-221-145-83.nip.io>
 - API: `https://fkiduebsb9.execute-api.us-east-1.amazonaws.com/desarrollo/api/v1/...`
 
 Las llaves están en `Downloads`: `pedidos360-publica.pem` (bastión) y `pedidos360-private.pem` (backend). La primera vez tras el cambio de IP ejecuta `ssh-keygen -R 44.221.145.83` para olvidar la huella del servidor antiguo.
@@ -65,7 +66,7 @@ Qué mostrar:
 
 ## 4. Compra normal
 
-1. Entrar a <https://44-221-145-83.nip.io> e iniciar sesión con Entra ID.
+1. Entrar a <https://e3fc0mjbec.execute-api.us-east-1.amazonaws.com/desarrollo/> e iniciar sesión con Entra ID.
 2. Agregar productos al carrito y comprar.
 3. En RabbitMQ → Queues se ve el movimiento de mensajes (gráficos *Message rates*).
 4. Llega el correo "Pedido PED-…: pago aprobado" al correo del usuario.
