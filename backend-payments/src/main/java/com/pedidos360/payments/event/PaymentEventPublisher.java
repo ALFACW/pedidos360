@@ -25,8 +25,8 @@ public class PaymentEventPublisher {
                 ? "PAYMENT_APPROVED"
                 : "PAYMENT_REJECTED";
         String routingKey = "APPROVED".equals(payment.get("status"))
-                ? "payment.approved"
-                : "payment.rejected";
+                ? RabbitConfig.PAYMENT_APPROVED_ROUTING_KEY
+                : RabbitConfig.PAYMENT_REJECTED_ROUTING_KEY;
         String eventId = payment.get("eventId").toString();
 
         try {

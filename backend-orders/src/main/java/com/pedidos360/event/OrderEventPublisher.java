@@ -32,7 +32,7 @@ public class OrderEventPublisher {
             CorrelationData correlationData = new CorrelationData(eventId);
             rabbitTemplate.convertAndSend(
                     RabbitConfig.EVENTS_EXCHANGE,
-                    "order.created",
+                    RabbitConfig.ORDER_CREATED_ROUTING_KEY,
                     payload,
                     message -> {
                         message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);

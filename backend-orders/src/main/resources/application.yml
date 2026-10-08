@@ -14,8 +14,8 @@ spring:
       ddl-auto: validate
     open-in-view: false
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
+    # Nodos del clúster separados por coma (rabbitmq1:5672,rabbitmq2:5672); el cliente conmuta si uno cae
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672}
     username: ${RABBITMQ_USER:pedidos360}
     password: ${RABBITMQ_PASSWORD}
     publisher-confirm-type: correlated
@@ -30,14 +30,9 @@ spring:
         max-attempts: 5
     listener:
       simple:
-        acknowledge-mode: auto
-        default-requeue-rejected: false
-        retry:
-          enabled: true
-          initial-interval: 1s
-          multiplier: 2
-          max-interval: 10s
-          max-attempts: 5
+        # ACK/NACK explícito en cada consumidor (ver RabbitAckHandler)
+        acknowledge-mode: manual
+        prefetch: 10
   security:
     oauth2:
       resourceserver:
@@ -47,6 +42,9 @@ spring:
 
 app:
   rabbitmq:
+    retry:
+      max-attempts: ${RABBITMQ_RETRY_MAX_ATTEMPTS:3}
+      initial-interval-ms: ${RABBITMQ_RETRY_INITIAL_INTERVAL_MS:1000}
     connection-name: ${RABBITMQ_CONNECTION_NAME:ms-pedidos}
   security:
     jwt:

@@ -1,65 +1,46 @@
 package com.pedidos360.payments.listener;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pedidos360.payments.event.PaymentEventPublisher;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.pedidos360.payments.config.RabbitAckHandler;
+import com.pedidos360.payments.service.PaymentProcessingService;
+import com.rabbitmq.client.Channel;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
 
 class OrderCreatedListenerTest {
 
-    private final PaymentEventPublisher publisher = mock(PaymentEventPublisher.class);
-    private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    private final OrderCreatedListener listener =
-            new OrderCreatedListener(new ObjectMapper(), publisher, jdbcTemplate);
+    private final PaymentProcessingService service = mock(PaymentProcessingService.class);
+    private final Channel channel = mock(Channel.class);
+    private final OrderCreatedListener listener = new OrderCreatedListener(service, new RabbitAckHandler(3, 0));
 
     @Test
-    void approvesPositiveOrderTotal() throws Exception {
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-        listener.handle("""
-                {"eventId":"order-42","eventType":"ORDER_CREATED","order":{"id":42,"orderNumber":"PED-42","user":"Test User","customerEmail":"test@example.com","total":19.99}}
-                """);
+    void acksAfterProcessingOrder() throws Exception {
+        listener.onMessage("{}", channel, 1L, "order-1");
 
-        verify(publisher).publishResult(argThat(
-                payment -> "APPROVED".equals(payment.get("status"))
-                        && "42".equals(payment.get("orderId"))
-                        && "test@example.com".equals(payment.get("customerEmail"))));
+        verify(channel).basicAck(1L, false);
     }
 
     @Test
-    void rejectsZeroOrderTotal() throws Exception {
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-        listener.handle("""
-                {"eventId":"order-43","eventType":"ORDER_CREATED","order":{"id":43,"total":0}}
-                """);
+    void nacksMalformedOrderToDeadLetterQueue() throws Exception {
+        doThrow(new IllegalArgumentException("sin eventId")).when(service).processOrderCreated("{}");
 
-        verify(publisher).publishResult(argThat(
-                payment -> "REJECTED".equals(payment.get("status"))));
+        listener.onMessage("{}", channel, 2L, "order-2");
+
+        verify(service, times(1)).processOrderCreated("{}");
+        verify(channel).basicNack(2L, false, false);
     }
 
     @Test
-    void ignoresPreviouslyProcessedOrderEvent() throws Exception {
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0);
+    void retriesDatabaseFailuresThenDeadLetters() throws Exception {
+        doThrow(new DataAccessResourceFailureException("BD caida")).when(service).processOrderCreated("{}");
 
-        listener.handle("""
-                {"eventId":"order-42","eventType":"ORDER_CREATED","order":{"id":42,"total":19.99}}
-                """);
+        listener.onMessage("{}", channel, 3L, "order-3");
 
-        verifyNoInteractions(publisher);
-    }
-
-    @Test
-    void rejectsUnexpectedEventForRetryAndDeadLetterHandling() {
-        assertThrows(IllegalArgumentException.class,
-                () -> listener.handle("{\"eventType\":\"UNKNOWN\"}"));
-        verifyNoInteractions(publisher, jdbcTemplate);
+        verify(service, times(3)).processOrderCreated("{}");
+        verify(channel).basicNack(3L, false, false);
     }
 }

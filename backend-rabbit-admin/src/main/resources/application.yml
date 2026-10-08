@@ -1,0 +1,33 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: pedidos360-rabbit-admin
+  rabbitmq:
+    # Nodos del clúster separados por coma (rabbitmq1:5672,rabbitmq2:5672)
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672}
+    username: ${RABBITMQ_USER:pedidos360}
+    password: ${RABBITMQ_PASSWORD}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/
+          tenant-id: e5372bf0-c5e3-4286-887c-79069f209c1f
+
+app:
+  rabbitmq:
+    connection-name: ${RABBITMQ_CONNECTION_NAME:ms-rabbit-admin}
+  rabbit-admin:
+    # Recursos que usan los microservicios en producción: no se pueden eliminar desde la API
+    protected-prefix: ${RABBIT_ADMIN_PROTECTED_PREFIX:pedidos360.}
+  security:
+    jwt:
+      audience: ${JWT_AUDIENCE:96aa35e3-1c70-4e36-8a41-0e1089f78df1}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+logging:
+  level:
+    org.springframework.security: INFO
