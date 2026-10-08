@@ -31,3 +31,7 @@ spring:
           multiplier: 2
           max-interval: 10s
           max-attempts: 5
+
+app:
+  rabbitmq:
+    connection-name: ${RABBITMQ_CONNECTION_NAME:ms-pagos}

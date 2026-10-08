@@ -2,15 +2,24 @@ package com.pedidos360.config;
 
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.rabbit.connection.ConnectionNameStrategy;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 @Configuration
 public class RabbitConfig {
+
+    // Nombre visible en la consola de RabbitMQ (pestaña Connections) en lugar de solo IP:puerto
+    @Bean
+    public ConnectionNameStrategy connectionNameStrategy(
+            @Value("${app.rabbitmq.connection-name}") String connectionName) {
+        return connectionFactory -> connectionName;
+    }
 
     public static final String EVENTS_EXCHANGE = "pedidos360.events";
     public static final String PAYMENT_RESULTS_QUEUE = "pedidos360.orders.payment-results.queue";

@@ -39,3 +39,7 @@ spring:
 notifications:
   email:
     from: ${MAIL_FROM:no-reply@pedidos360.local}
+
+app:
+  rabbitmq:
+    connection-name: ${RABBITMQ_CONNECTION_NAME:ms-notificaciones}
