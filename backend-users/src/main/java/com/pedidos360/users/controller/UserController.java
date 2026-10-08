@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/v1/users")
 public class UserController {
 
     private final UserRepository userRepository;
@@ -39,7 +39,7 @@ public class UserController {
                 "status", "UP",
                 "service", "users-service",
                 "timestamp", Instant.now().toString(),
-                "publicEndpoint", "/api/users/public"));
+                "publicEndpoint", "/api/v1/users/public"));
     }
 
     // READ ME (Profile from token)

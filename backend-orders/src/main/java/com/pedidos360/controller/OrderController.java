@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @RestController
-@RequestMapping("/api/orders")
+@RequestMapping("/api/v1/orders")
 public class OrderController {
 
     private final OrderStore orderStore;
@@ -54,7 +54,7 @@ public class OrderController {
                 "status", "UP",
                 "service", "orders-service",
                 "timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
-                "publicEndpoint", "/api/orders/public"));
+                "publicEndpoint", "/api/v1/orders/public"));
     }
 
     // LIST ORDERS

@@ -10,10 +10,10 @@ export default defineConfig({
     strictPort: true,
     // Gateway local: enruta cada API al microservicio correspondiente
     proxy: {
-      '/api/orders': 'http://localhost:8080',
-      '/api/products': 'http://localhost:8081',
-      '/api/users': 'http://localhost:8082',
-      '/api/cart': 'http://localhost:8083',
+      '/api/v1/orders': 'http://localhost:8080',
+      '/api/v1/products': 'http://localhost:8081',
+      '/api/v1/users': 'http://localhost:8082',
+      '/api/v1/cart': 'http://localhost:8083',
     },
     allowedHosts: ['same-perfume-cloud.ngrok-free.dev', '.ngrok-free.dev'],
   },

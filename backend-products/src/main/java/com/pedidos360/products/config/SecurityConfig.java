@@ -124,8 +124,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/products/public", "/api/products/health").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**").authenticated()
+                        .requestMatchers("/api/v1/products/public", "/api/v1/products/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/products", "/api/v1/products/**").authenticated()
                         .anyRequest().hasRole("Admin"))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.decoder(jwtDecoder())

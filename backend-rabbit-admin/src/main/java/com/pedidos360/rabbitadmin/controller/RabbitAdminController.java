@@ -38,7 +38,7 @@ import java.util.Map;
  * </pre>
  */
 @RestController
-@RequestMapping("/api/rabbit")
+@RequestMapping("/api/v1/rabbit")
 public class RabbitAdminController {
 
     private final RabbitAdminService rabbitAdminService;
@@ -55,7 +55,7 @@ public class RabbitAdminController {
     @PostMapping("/queues")
     public ResponseEntity<QueueResponse> createQueue(@Valid @RequestBody QueueRequest request) {
         QueueResponse queue = rabbitAdminService.createQueue(request);
-        return ResponseEntity.created(URI.create("/api/rabbit/queues/" + queue.name())).body(queue);
+        return ResponseEntity.created(URI.create("/api/v1/rabbit/queues/" + queue.name())).body(queue);
     }
 
     @GetMapping("/queues/{name}")

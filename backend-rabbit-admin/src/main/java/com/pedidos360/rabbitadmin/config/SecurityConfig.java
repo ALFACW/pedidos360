@@ -123,9 +123,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/rabbit/health").permitAll()
+                        .requestMatchers("/api/v1/rabbit/health").permitAll()
                         // Administrar colas y exchanges es una operación de infraestructura: solo Admin
-                        .requestMatchers("/api/rabbit/**").hasRole("Admin")
+                        .requestMatchers("/api/v1/rabbit/**").hasRole("Admin")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.decoder(jwtDecoder())

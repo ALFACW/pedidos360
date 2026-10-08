@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/products")
+@RequestMapping("/api/v1/products")
 public class ProductController {
 
     private final ProductRepository productRepository;
@@ -40,7 +40,7 @@ public class ProductController {
                 "status", "UP",
                 "service", "products-service",
                 "timestamp", Instant.now().toString(),
-                "publicEndpoint", "/api/products/public"));
+                "publicEndpoint", "/api/v1/products/public"));
     }
 
     // READ ALL

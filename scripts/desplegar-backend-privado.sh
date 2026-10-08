@@ -12,7 +12,7 @@
 #   cd pedidos360 && docker compose -f docker-compose.yml -f docker-compose.aws.yml up -d
 set -euo pipefail
 
-BASTION_IP="${BASTION_IP:-18.207.148.103}"
+BASTION_IP="${BASTION_IP:-44.221.145.83}"
 BACKEND_IP="${BACKEND_IP:-10.0.132.193}"
 OLD_BACKEND_IP="${OLD_BACKEND_IP:-34.224.188.8}"
 KEY_PUBLICA="${KEY_PUBLICA:-$HOME/Downloads/pedidos360-publica.pem}"

@@ -115,7 +115,7 @@ function App() {
       try {
         const token = await getAccessToken();
         const usersApi = import.meta.env.VITE_USERS_API_BASE_URL || apiBaseUrl;
-        const res = await fetch(`${usersApi}/api/users/me`, {
+        const res = await fetch(`${usersApi}/api/v1/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) setIsAdmin(Boolean((await res.json()).admin));
@@ -141,7 +141,7 @@ function App() {
   const loadProducts = async () => {
     try {
       const token = await getAccessToken();
-      const res = await fetch(`${apiBaseUrl}/api/products`, {
+      const res = await fetch(`${apiBaseUrl}/api/v1/products`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -159,7 +159,7 @@ function App() {
       setLoading(true);
       const token = await getAccessToken();
       const isEdit = productModal.mode === 'edit';
-      const url = isEdit ? `${apiBaseUrl}/api/products/${productModal.data.id}` : `${apiBaseUrl}/api/products`;
+      const url = isEdit ? `${apiBaseUrl}/api/v1/products/${productModal.data.id}` : `${apiBaseUrl}/api/v1/products`;
       const method = isEdit ? 'PUT' : 'POST';
 
       const payload = {
@@ -194,7 +194,7 @@ function App() {
     if (!confirm('¿Seguro que deseas eliminar este producto?')) return;
     try {
       const token = await getAccessToken();
-      const res = await fetch(`${apiBaseUrl}/api/products/${id}`, {
+      const res = await fetch(`${apiBaseUrl}/api/v1/products/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -212,7 +212,7 @@ function App() {
   const loadUsers = async () => {
     try {
       const token = await getAccessToken();
-      const res = await fetch(`${apiBaseUrl}/api/users`, {
+      const res = await fetch(`${apiBaseUrl}/api/v1/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -230,7 +230,7 @@ function App() {
       setLoading(true);
       const token = await getAccessToken();
       const isEdit = userModal.mode === 'edit';
-      const url = isEdit ? `${apiBaseUrl}/api/users/${userModal.data.id}` : `${apiBaseUrl}/api/users`;
+      const url = isEdit ? `${apiBaseUrl}/api/v1/users/${userModal.data.id}` : `${apiBaseUrl}/api/v1/users`;
       const method = isEdit ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -257,7 +257,7 @@ function App() {
     if (!confirm('¿Seguro que deseas eliminar este usuario?')) return;
     try {
       const token = await getAccessToken();
-      const res = await fetch(`${apiBaseUrl}/api/users/${id}`, {
+      const res = await fetch(`${apiBaseUrl}/api/v1/users/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -303,7 +303,7 @@ function App() {
         paymentMethod: paymentMethod,
       };
 
-      const res = await fetch(`${apiBaseUrl}/api/orders`, {
+      const res = await fetch(`${apiBaseUrl}/api/v1/orders`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -333,7 +333,7 @@ function App() {
   const loadOrders = async () => {
     try {
       const token = await getAccessToken();
-      const res = await fetch(`${apiBaseUrl}/api/orders`, {
+      const res = await fetch(`${apiBaseUrl}/api/v1/orders`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -350,9 +350,9 @@ function App() {
     try {
       setLoading(true);
       const [o, p, u] = await Promise.all([
-        fetch(`${apiBaseUrl}/api/orders/public`).then((r) => r.json()).catch((e) => ({ error: e.message })),
-        fetch(`${apiBaseUrl}/api/products/public`).then((r) => r.json()).catch((e) => ({ error: e.message })),
-        fetch(`${apiBaseUrl}/api/users/public`).then((r) => r.json()).catch((e) => ({ error: e.message })),
+        fetch(`${apiBaseUrl}/api/v1/orders/public`).then((r) => r.json()).catch((e) => ({ error: e.message })),
+        fetch(`${apiBaseUrl}/api/v1/products/public`).then((r) => r.json()).catch((e) => ({ error: e.message })),
+        fetch(`${apiBaseUrl}/api/v1/users/public`).then((r) => r.json()).catch((e) => ({ error: e.message })),
       ]);
       setHealthStatus({ orders: o, products: p, users: u });
       setShowHealthModal(true);
@@ -1083,7 +1083,7 @@ function App() {
             <div className="postman-help-box">
               <strong>💡 Cómo probarlo en Postman:</strong>
               <p><strong>1. Método:</strong> <code>POST</code> o <code>GET</code></p>
-              <p><strong>2. URL:</strong> <code>{apiBaseUrl}/api/products</code> (o <code>/api/orders</code>)</p>
+              <p><strong>2. URL:</strong> <code>{apiBaseUrl}/api/v1/products</code> (o <code>/api/v1/orders</code>)</p>
               <p><strong>3. En la pestaña Auth:</strong> Selecciona <strong>Bearer Token</strong> y pega el token de arriba.</p>
               <p><strong>4. En la pestaña Body (si es POST):</strong> Selecciona <strong>raw / JSON</strong> y envía: <code>{JSON.stringify({ name: "Monitor Postman", price: 199.99, stock: 10, category: "Monitores", icon: "🖥️" })}</code></p>
             </div>

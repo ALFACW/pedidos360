@@ -39,16 +39,16 @@ class RabbitAdminControllerValidationTest {
     void createsValidQueue() throws Exception {
         when(service.createQueue(any())).thenReturn(new QueueResponse("demo.queue", 0, 0));
 
-        mockMvc.perform(post("/api/rabbit/queues").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/rabbit/queues").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"demo.queue\",\"deadLetterExchange\":\"demo.dlx\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", "/api/rabbit/queues/demo.queue"))
+                .andExpect(header().string("Location", "/api/v1/rabbit/queues/demo.queue"))
                 .andExpect(jsonPath("$.name").value("demo.queue"));
     }
 
     @Test
     void rejectsQueueWithEmptyName() throws Exception {
-        mockMvc.perform(post("/api/rabbit/queues").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/rabbit/queues").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"  \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.name").exists());
@@ -58,7 +58,7 @@ class RabbitAdminControllerValidationTest {
 
     @Test
     void rejectsReservedAmqPrefix() throws Exception {
-        mockMvc.perform(post("/api/rabbit/queues").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/rabbit/queues").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"amq.hack\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.name").exists());
@@ -66,7 +66,7 @@ class RabbitAdminControllerValidationTest {
 
     @Test
     void rejectsDeadLetterRoutingKeyWithoutExchange() throws Exception {
-        mockMvc.perform(post("/api/rabbit/queues").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/rabbit/queues").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"demo.queue\",\"deadLetterRoutingKey\":\"dead\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.deadLetterConfigValid").exists());
@@ -74,7 +74,7 @@ class RabbitAdminControllerValidationTest {
 
     @Test
     void rejectsUnknownExchangeType() throws Exception {
-        mockMvc.perform(post("/api/rabbit/exchanges").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/rabbit/exchanges").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"demo.x\",\"type\":\"queue\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.type").value("debe ser direct, topic, fanout o headers"));
@@ -84,7 +84,7 @@ class RabbitAdminControllerValidationTest {
 
     @Test
     void rejectsBindingWithoutRoutingKey() throws Exception {
-        mockMvc.perform(post("/api/rabbit/bindings").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/rabbit/bindings").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"queue\":\"demo.queue\",\"exchange\":\"demo.x\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.routingKey").exists());
@@ -92,7 +92,7 @@ class RabbitAdminControllerValidationTest {
 
     @Test
     void rejectsInvalidQueueNameInPath() throws Exception {
-        mockMvc.perform(delete("/api/rabbit/queues/{name}", "cola con espacios"))
+        mockMvc.perform(delete("/api/v1/rabbit/queues/{name}", "cola con espacios"))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(service);
@@ -102,13 +102,13 @@ class RabbitAdminControllerValidationTest {
     void returnsConflictForProtectedQueues() throws Exception {
         doThrow(new ProtectedResourceException("protegida")).when(service).deleteQueue("pedidos360.x");
 
-        mockMvc.perform(delete("/api/rabbit/queues/{name}", "pedidos360.x"))
+        mockMvc.perform(delete("/api/v1/rabbit/queues/{name}", "pedidos360.x"))
                 .andExpect(status().isConflict());
     }
 
     @Test
     void rejectsMalformedJson() throws Exception {
-        mockMvc.perform(post("/api/rabbit/queues").contentType(MediaType.APPLICATION_JSON).content("{nombre"))
+        mockMvc.perform(post("/api/v1/rabbit/queues").contentType(MediaType.APPLICATION_JSON).content("{nombre"))
                 .andExpect(status().isBadRequest());
     }
 }
