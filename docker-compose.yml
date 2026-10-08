@@ -12,6 +12,7 @@ services:
   rabbitmq1:
     image: rabbitmq:3-management
     hostname: rabbitmq1
+    # Los 2 nodos arrancan a la vez: el peer discovery elige uno como semilla y el otro se une
     restart: unless-stopped
     # Ambos nodos comparten la misma Erlang cookie: es la credencial que los une en un clúster
     entrypoint: ["/bin/sh", "-c", "echo \"$$RABBITMQ_ERLANG_COOKIE\" > /var/lib/rabbitmq/.erlang.cookie && chown rabbitmq:rabbitmq /var/lib/rabbitmq/.erlang.cookie && chmod 400 /var/lib/rabbitmq/.erlang.cookie && exec docker-entrypoint.sh rabbitmq-server"]
@@ -28,8 +29,8 @@ services:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
       interval: 10s
       timeout: 10s
-      retries: 12
-      start_period: 30s
+      retries: 30
+      start_period: 60s
     networks:
       - pedidos360-net
 
@@ -52,11 +53,8 @@ services:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
       interval: 10s
       timeout: 10s
-      retries: 12
-      start_period: 30s
-    depends_on:
-      rabbitmq1:
-        condition: service_healthy
+      retries: 30
+      start_period: 60s
     networks:
       - pedidos360-net
 
