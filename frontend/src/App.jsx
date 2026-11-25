@@ -272,10 +272,6 @@ function App() {
                     onCopiar={() => { navigator.clipboard.writeText(token.valor); showAlert('Token copiado'); }} />
       )}
 
-      <footer className="mx-auto max-w-[1440px] border-t border-tinta px-4 py-4 text-sm text-gris sm:px-8">
-        Pedidos360. Fotografías de Unsplash (licencia Unsplash).
-      </footer>
-
       <AnimatePresence>
         {aviso && (
           <motion.div role="status" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
