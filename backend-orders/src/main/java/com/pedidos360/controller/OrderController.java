@@ -57,13 +57,11 @@ public class OrderController {
                 "publicEndpoint", "/api/v1/orders/public"));
     }
 
-    // LIST ORDERS
+    // LIST ORDERS: el Admin ve todos (también los suyos, que cuentan como ventas); el cliente solo los propios
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> list(@AuthenticationPrincipal Jwt jwt) {
         List<Map<String, Object>> list = SecurityConfig.isAdmin(jwt)
-                ? orderStore.findAll().stream()
-                        .filter(o -> !jwt.getSubject().equals(o.get("ownerId")))
-                        .collect(java.util.stream.Collectors.toList())
+                ? orderStore.findAll()
                 : orderStore.findByOwner(jwt.getSubject());
         list.sort((a, b) -> Long.compare(((Number) b.get("id")).longValue(), ((Number) a.get("id")).longValue())); // más recientes primero
         return ResponseEntity.ok(list);
