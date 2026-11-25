@@ -1,3 +1,6 @@
+server:
+  port: 8085
+
 spring:
   application:
     name: pedidos360-payments
@@ -6,6 +9,10 @@ spring:
     username: ${DB_USERNAME:pedidos360}
     password: ${DB_PASSWORD:change-this-password}
     driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
   rabbitmq:
     # Nodos del clúster separados por coma (rabbitmq1:5672,rabbitmq2:5672); el cliente conmuta si uno cae
     addresses: ${RABBITMQ_ADDRESSES:localhost:5672}
@@ -26,6 +33,31 @@ spring:
         # ACK/NACK explícito en cada consumidor (ver RabbitAckHandler)
         acknowledge-mode: manual
         prefetch: 10
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # Confirmado por las réplicas en sincronía (min.insync.replicas=2)
+      acks: all
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: deteccion-fraude
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Un JSON mal formado no bloquea la partición: el error llega al DefaultErrorHandler y el mensaje va a la DLT
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.value.default.type: com.pedidos360.payments.dto.IntentoPagoDTO
+        spring.json.trusted.packages: com.pedidos360.payments.dto
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/
+          tenant-id: e5372bf0-c5e3-4286-887c-79069f209c1f
 
 app:
   rabbitmq:
@@ -33,3 +65,8 @@ app:
       max-attempts: ${RABBITMQ_RETRY_MAX_ATTEMPTS:3}
       initial-interval-ms: ${RABBITMQ_RETRY_INITIAL_INTERVAL_MS:1000}
     connection-name: ${RABBITMQ_CONNECTION_NAME:ms-pagos}
+  security:
+    jwt:
+      audience: ${JWT_AUDIENCE:96aa35e3-1c70-4e36-8a41-0e1089f78df1}
+  webpay:
+    url-retorno: ${WEBPAY_URL_RETORNO:http://localhost:5173/}

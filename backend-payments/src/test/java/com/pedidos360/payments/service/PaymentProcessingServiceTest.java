@@ -1,65 +1,55 @@
 package com.pedidos360.payments.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pedidos360.payments.event.PaymentEventPublisher;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.pedidos360.payments.repository.PagoRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class PaymentProcessingServiceTest {
 
-    private final PaymentEventPublisher publisher = mock(PaymentEventPublisher.class);
+    private final PagoRepository pagoRepository = mock(PagoRepository.class);
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    private final PaymentProcessingService listener =
-            new PaymentProcessingService(new ObjectMapper(), publisher, jdbcTemplate);
+    private final PaymentProcessingService service =
+            new PaymentProcessingService(new ObjectMapper(), pagoRepository, jdbcTemplate);
 
     @Test
-    void approvesPositiveOrderTotal() throws Exception {
+    void registraPagoPendiente() throws Exception {
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-        listener.processOrderCreated("""
+        service.processOrderCreated("""
                 {"eventId":"order-42","eventType":"ORDER_CREATED","order":{"id":42,"orderNumber":"PED-42","user":"Test User","customerEmail":"test@example.com","total":19.99}}
                 """);
 
-        verify(publisher).publishResult(argThat(
-                payment -> "APPROVED".equals(payment.get("status"))
-                        && "42".equals(payment.get("orderId"))
-                        && "test@example.com".equals(payment.get("customerEmail"))));
+        verify(pagoRepository).save(argThat(pago -> pago.getPedidoId() == 42
+                && "PENDIENTE".equals(pago.getEstado())
+                && new BigDecimal("19.99").equals(pago.getMonto())
+                && "test@example.com".equals(pago.getCorreo())));
     }
 
     @Test
-    void rejectsZeroOrderTotal() throws Exception {
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-        listener.processOrderCreated("""
-                {"eventId":"order-43","eventType":"ORDER_CREATED","order":{"id":43,"total":0}}
-                """);
-
-        verify(publisher).publishResult(argThat(
-                payment -> "REJECTED".equals(payment.get("status"))));
-    }
-
-    @Test
-    void ignoresPreviouslyProcessedOrderEvent() throws Exception {
+    void ignoraEventoYaProcesado() throws Exception {
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0);
-
-        listener.processOrderCreated("""
+        service.processOrderCreated("""
                 {"eventId":"order-42","eventType":"ORDER_CREATED","order":{"id":42,"total":19.99}}
                 """);
 
-        verifyNoInteractions(publisher);
+        verifyNoInteractions(pagoRepository);
     }
 
     @Test
-    void rejectsUnexpectedEventForRetryAndDeadLetterHandling() {
+    void rechazaEventoInesperado() {
         assertThrows(IllegalArgumentException.class,
-                () -> listener.processOrderCreated("{\"eventType\":\"UNKNOWN\"}"));
-        verifyNoInteractions(publisher, jdbcTemplate);
+                () -> service.processOrderCreated("{\"eventType\":\"UNKNOWN\"}"));
+        verifyNoInteractions(pagoRepository, jdbcTemplate);
     }
 }

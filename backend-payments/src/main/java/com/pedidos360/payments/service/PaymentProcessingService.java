@@ -2,29 +2,23 @@ package com.pedidos360.payments.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pedidos360.payments.event.PaymentEventPublisher;
+import com.pedidos360.payments.model.Pago;
+import com.pedidos360.payments.repository.PagoRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.util.Locale;
-import java.util.Map;
-
-/** Dominio pagos: procesa un pedido creado (idempotente vía payment_inbox) y publica el resultado. */
+/** Dominio pagos: registra el pago PENDIENTE de un pedido creado (idempotente vía payment_inbox). */
 @Service
 public class PaymentProcessingService {
 
     private final ObjectMapper objectMapper;
-    private final PaymentEventPublisher paymentEventPublisher;
+    private final PagoRepository pagoRepository;
     private final JdbcTemplate jdbcTemplate;
 
-    public PaymentProcessingService(
-            ObjectMapper objectMapper,
-            PaymentEventPublisher paymentEventPublisher,
-            JdbcTemplate jdbcTemplate) {
+    public PaymentProcessingService(ObjectMapper objectMapper, PagoRepository pagoRepository, JdbcTemplate jdbcTemplate) {
         this.objectMapper = objectMapper;
-        this.paymentEventPublisher = paymentEventPublisher;
+        this.pagoRepository = pagoRepository;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -45,19 +39,6 @@ public class PaymentProcessingService {
             throw new IllegalArgumentException("El evento no incluye id y total del pedido");
         }
 
-        String orderId = order.path("id").asText();
-        BigDecimal amount = order.path("total").decimalValue();
-        String status = amount.signum() > 0 ? "APPROVED" : "REJECTED";
-        String eventId = "payment-" + orderId + "-" + status.toLowerCase(Locale.ROOT);
-        Map<String, Object> payment = Map.of(
-                "eventId", eventId,
-                "orderId", orderId,
-                "orderNumber", order.path("orderNumber").asText("unknown"),
-                "customer", order.path("user").asText("customer"),
-                "customerEmail", order.path("customerEmail").asText(""),
-                "amount", amount,
-                "status", status);
-
         int inserted = jdbcTemplate.update(
                 "INSERT INTO payment_inbox (event_id) VALUES (?) ON CONFLICT (event_id) DO NOTHING",
                 orderEventId);
@@ -65,6 +46,13 @@ public class PaymentProcessingService {
             return;
         }
 
-        paymentEventPublisher.publishResult(payment);
+        Pago pago = new Pago();
+        pago.setPedidoId(order.path("id").asLong());
+        pago.setNumeroPedido(order.path("orderNumber").asText());
+        pago.setCliente(order.path("user").asText());
+        pago.setCorreo(order.path("customerEmail").asText(""));
+        pago.setMonto(order.path("total").decimalValue());
+        pago.setEstado("PENDIENTE");
+        pagoRepository.save(pago);
     }
 }
