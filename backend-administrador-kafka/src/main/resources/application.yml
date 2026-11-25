@@ -1,0 +1,19 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: pedidos360-administrador-kafka
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/
+          tenant-id: e5372bf0-c5e3-4286-887c-79069f209c1f
+
+app:
+  security:
+    jwt:
+      audience: ${JWT_AUDIENCE:96aa35e3-1c70-4e36-8a41-0e1089f78df1}
