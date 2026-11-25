@@ -1,5 +1,6 @@
 package com.pedidos360.products.controller;
 
+import com.pedidos360.products.event.InteraccionPublisher;
 import com.pedidos360.products.model.ProductEntity;
 import com.pedidos360.products.repository.ProductRepository;
 import org.springframework.http.HttpStatus;
@@ -21,9 +22,11 @@ import java.util.Map;
 public class ProductController {
 
     private final ProductRepository productRepository;
+    private final InteraccionPublisher interaccionPublisher;
 
-    public ProductController(ProductRepository productRepository) {
+    public ProductController(ProductRepository productRepository, InteraccionPublisher interaccionPublisher) {
         this.productRepository = productRepository;
+        this.interaccionPublisher = interaccionPublisher;
     }
 
     @GetMapping("/public")
@@ -54,11 +57,12 @@ public class ProductController {
 
     // READ ONE
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(@PathVariable Long id) {
+    public ResponseEntity<?> getById(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
         ProductEntity product = productRepository.findById(Math.toIntExact(id)).orElse(null);
         if (product == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Producto no encontrado"));
         }
+        interaccionPublisher.publicar(jwt, id, product.getName(), product.getCategory(), "VER");
         return ResponseEntity.ok(toResponse(product));
     }
 
