@@ -10,7 +10,7 @@ function App() {
 
   // Navegación
   const [activeTab, setActiveTab] = useState('tienda'); // tienda | carrito | pedidos | productos | usuarios
-  const [apiBaseUrl, setApiBaseUrl] = useState(import.meta.env.VITE_API_BASE_URL || 'https://3hvdy2quhe.execute-api.us-east-1.amazonaws.com/desarrollo');
+  const [apiBaseUrl, setApiBaseUrl] = useState(import.meta.env.VITE_API_BASE_URL || 'https://fkiduebsb9.execute-api.us-east-1.amazonaws.com/desarrollo');
 
   // Estados de datos
   const [products, setProducts] = useState([]);

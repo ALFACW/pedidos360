@@ -97,7 +97,19 @@ echo "$ROUTES" | while read -r METHOD ROUTE_PATH AUTH; do
   echo "   + $KEY ($AUTH)"
 done
 
-echo "4) Etapa '$STAGE' e implementación..."
+echo "4) Verificando que no queden rutas ANY ni {proxy+}..."
+aws apigatewayv2 get-routes $R --api-id "$API_ID" \
+  --query "Items[?starts_with(RouteKey, 'ANY ') || contains(RouteKey, '{proxy+}')].[RouteId,RouteKey,Target]" --output text |
+while IFS=$'\t' read -r ROUTE_ID KEY TARGET; do
+  [ -z "$ROUTE_ID" ] && continue
+  aws apigatewayv2 delete-route $R --api-id "$API_ID" --route-id "$ROUTE_ID"
+  echo "   - $KEY (eliminada)"
+  if [ -n "$TARGET" ] && [ "$TARGET" != "None" ]; then
+    aws apigatewayv2 delete-integration $R --api-id "$API_ID" --integration-id "${TARGET#integrations/}" || true
+  fi
+done
+
+echo "5) Etapa '$STAGE' e implementación..."
 aws apigatewayv2 get-stage $R --api-id "$API_ID" --stage-name "$STAGE" >/dev/null 2>&1 \
   || aws apigatewayv2 create-stage $R --api-id "$API_ID" --stage-name "$STAGE" --tags Proyecto=pedidos360 >/dev/null
 DEPLOYMENT_ID=$(aws apigatewayv2 create-deployment $R --api-id "$API_ID" --stage-name "$STAGE" \
