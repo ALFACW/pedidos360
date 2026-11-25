@@ -1,0 +1,275 @@
+1
+00:00:00,000 --> 00:00:04,000
+Escena 1. La tienda funcionando
+
+2
+00:00:04,000 --> 00:00:11,000
+Pedidos360: tienda cloud native desplegada en AWS.
+
+3
+00:00:11,000 --> 00:00:18,000
+El inicio de sesión usa Microsoft Entra ID con OAuth 2.0 y OpenID Connect.
+
+4
+00:00:18,000 --> 00:00:25,000
+Elijo la cuenta del cliente; MSAL obtiene un token JWT para llamar al API.
+
+5
+00:00:25,000 --> 00:00:29,000
+Escena 2. Arquitectura en AWS
+
+6
+00:00:29,000 --> 00:00:36,000
+Red propia: lo público en una subred y el backend aislado en subredes privadas.
+
+7
+00:00:36,000 --> 00:00:43,000
+Dos EC2: una por cada API Gateway. El backend no es accesible desde Internet.
+
+8
+00:00:43,000 --> 00:00:50,000
+Cada capa solo acepta tráfico de la capa anterior.
+
+9
+00:00:50,000 --> 00:00:57,000
+Un ALB interno reparte cada ruta al puerto de su microservicio.
+
+10
+00:00:57,000 --> 00:01:04,000
+Los 8 microservicios responden su health check.
+
+11
+00:01:04,000 --> 00:01:11,000
+API versionada /api/v1: una ruta por cada endpoint y método.
+
+12
+00:01:11,000 --> 00:01:18,000
+El frontend tiene su propio API Gateway que le da HTTPS.
+
+13
+00:01:18,000 --> 00:01:25,000
+API WebSocket para el dashboard en tiempo real.
+
+14
+00:01:25,000 --> 00:01:32,000
+Dos Lambdas: una guarda conexiones y otra envía cada evento nuevo.
+
+15
+00:01:32,000 --> 00:01:39,000
+Las interacciones de los clientes se guardan en DynamoDB.
+
+16
+00:01:39,000 --> 00:01:46,000
+Pedidos, productos, usuarios y pagos en PostgreSQL privado.
+
+17
+00:01:46,000 --> 00:01:53,000
+Cada microservicio se publica como imagen en ECR.
+
+18
+00:01:53,000 --> 00:01:57,000
+Escena 3. IDaaS: Entra ID
+
+19
+00:01:57,000 --> 00:02:04,000
+Tenant de Entra ID con usuarios registrados.
+
+20
+00:02:04,000 --> 00:02:11,000
+El rol Admin se asigna en Entra ID y viaja en el token (claim roles).
+
+21
+00:02:11,000 --> 00:02:18,000
+La Redirect URI es la URL de la tienda en API Gateway.
+
+22
+00:02:18,000 --> 00:02:22,000
+Escena 4. Backend en la nube con docker compose
+
+23
+00:02:22,000 --> 00:02:29,000
+Entro al backend privado pasando por el bastión.
+
+24
+00:02:29,000 --> 00:02:36,000
+Un docker compose levanta Kafka: 3 Zookeeper, 3 brokers y Kafka UI.
+
+25
+00:02:36,000 --> 00:02:43,000
+Otro levanta 9 microservicios y RabbitMQ en clúster de 2 nodos.
+
+26
+00:02:43,000 --> 00:02:50,000
+Bajo un broker y lo levanto en vivo con docker compose.
+
+27
+00:02:50,000 --> 00:02:57,000
+RabbitMQ confirma los dos nodos en el clúster.
+
+28
+00:02:57,000 --> 00:03:01,000
+Escena 5. RabbitMQ
+
+29
+00:03:01,000 --> 00:03:08,000
+Consola de RabbitMQ: los dos nodos del clúster.
+
+30
+00:03:08,000 --> 00:03:15,000
+Exchange topic pedidos360.events y exchange direct pedidos360.dlx.
+
+31
+00:03:15,000 --> 00:03:22,000
+Tres colas de trabajo, cada una con su cola de mensajes muertos (DLQ).
+
+32
+00:03:22,000 --> 00:03:29,000
+Flujo: pedido creado, pago aprobado o rechazado, y notificación por correo.
+
+33
+00:03:29,000 --> 00:03:36,000
+Cada microservicio aparece con su nombre en Connections.
+
+34
+00:03:36,000 --> 00:03:40,000
+Escena 6. Kafka UI
+
+35
+00:03:40,000 --> 00:03:47,000
+Kafka UI administra el clúster: 3 brokers activos.
+
+36
+00:03:47,000 --> 00:03:54,000
+Dos tópicos con 3 particiones y 3 réplicas cada uno, más sus tópicos de error.
+
+37
+00:03:54,000 --> 00:04:01,000
+3 particiones permiten procesar en paralelo; 3 réplicas toleran la caída de un broker.
+
+38
+00:04:01,000 --> 00:04:08,000
+Retención: intentos de pago 1 día, interacciones 7 días.
+
+39
+00:04:08,000 --> 00:04:15,000
+Cada mensaje tiene clave, partición y offset.
+
+40
+00:04:15,000 --> 00:04:22,000
+Consumer groups deteccion-fraude y recomendaciones, con lag 0.
+
+41
+00:04:22,000 --> 00:04:26,000
+Escena 7. Compra completa del cliente
+
+42
+00:04:26,000 --> 00:04:33,000
+Ver un producto publica un evento VER en Kafka.
+
+43
+00:04:33,000 --> 00:04:40,000
+Agregarlo al carrito publica CARRITO; las recomendaciones se recalculan.
+
+44
+00:04:40,000 --> 00:04:47,000
+El pago se hace con WebPay en ambiente de integración de Transbank.
+
+45
+00:04:47,000 --> 00:04:54,000
+Al aprobarse, RabbitMQ avisa a pedidos (descuenta stock) y a notificaciones.
+
+46
+00:04:54,000 --> 00:05:01,000
+El cliente recibe el correo de confirmación.
+
+47
+00:05:01,000 --> 00:05:08,000
+La compra también llega a Kafka como evento COMPRA.
+
+48
+00:05:08,000 --> 00:05:12,000
+Escena 8. Dashboard del Admin en tiempo real
+
+49
+00:05:12,000 --> 00:05:19,000
+Dashboard del Admin conectado por WebSocket.
+
+50
+00:05:19,000 --> 00:05:26,000
+Ventas confirmadas, pedidos pagados y ticket promedio.
+
+51
+00:05:26,000 --> 00:05:33,000
+Embudo de conversión: vistas, carrito y compras.
+
+52
+00:05:33,000 --> 00:05:40,000
+Cada clic del cliente aparece al instante en Actividad en vivo.
+
+53
+00:05:40,000 --> 00:05:47,000
+Alertas con detalle: pedidos pendientes, cancelados, stock bajo y fraude.
+
+54
+00:05:47,000 --> 00:05:54,000
+Un pedido sin pagar se puede reanudar o cancelar; el Admin lo ve actualizado.
+
+55
+00:05:54,000 --> 00:05:58,000
+Escena 9. Antifraude: misma tarjeta más de 3 veces en 10 segundos
+
+56
+00:05:58,000 --> 00:06:05,000
+Regla antifraude: la misma tarjeta más de 3 veces en 10 segundos se bloquea.
+
+57
+00:06:05,000 --> 00:06:12,000
+Cada intento de pago es un evento en Kafka con la tarjeta como clave.
+
+58
+00:06:12,000 --> 00:06:19,000
+Misma tarjeta, misma partición: los intentos llegan en orden.
+
+59
+00:06:19,000 --> 00:06:26,000
+Al cuarto intento la tarjeta se bloquea 30 minutos y se registra la alerta.
+
+60
+00:06:26,000 --> 00:06:33,000
+El siguiente pago con esa tarjeta se rechaza antes de llegar a WebPay.
+
+61
+00:06:33,000 --> 00:06:37,000
+Escena 10. Errores, administradores y cierre
+
+62
+00:06:37,000 --> 00:06:44,000
+Un mensaje inválido no detiene al consumidor: va al tópico .DLT con su motivo.
+
+63
+00:06:44,000 --> 00:06:51,000
+Los errores transitorios se reintentan 3 veces antes de la DLT.
+
+64
+00:06:51,000 --> 00:06:58,000
+Microservicio administrador de Kafka: crea, modifica y elimina tópicos y ve el lag.
+
+65
+00:06:58,000 --> 00:07:05,000
+Microservicio administrador de RabbitMQ: crea y elimina colas, exchanges y bindings.
+
+66
+00:07:05,000 --> 00:07:12,000
+Sin token, API Gateway responde 401.
+
+67
+00:07:12,000 --> 00:07:19,000
+RabbitMQ se mantiene para tareas; Kafka se suma para eventos y analítica.
+
+68
+00:07:19,000 --> 00:07:26,000
+*Intento de pago:* `tarjeta` (solo últimos 4 dígitos, es la clave), `cliente`, `pedidoId`, `monto` y `fecha` (hora del evento, para que la ventana de 10 s no dependa del retraso del consumidor).
+
+69
+00:07:26,000 --> 00:07:33,000
+*Interacción:* `usuario` (clave), `productoId`, `nombreProducto`, `categoria` (para recomendar por categoría), `accion` (VER, CARRITO o COMPRA, con pesos 1, 2 y 3) y `fecha`.
