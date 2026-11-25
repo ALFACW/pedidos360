@@ -164,6 +164,6 @@ Cambio de cuenta AWS: el laboratorio anterior (468107274970) agoto su saldo; tod
 - [x] Dashboard WebSocket (+3): DynamoDB Stream -> Lambda -> API WebSocket -> pestana Dashboard (3 metricas).
 - [x] 2 EC2 (una por API Gateway); rutas por metodo (44 backend, 2 GET frontend); CORS solo la pagina del frontend.
 - [x] Repositorio publico: https://github.com/ALFACW/pedidos360
-- [ ] Agregar en Entra ID la Redirect URI https://ahdle7i9n6.execute-api.us-east-1.amazonaws.com/desarrollo/
+- [x] Agregar en Entra ID la Redirect URI https://ahdle7i9n6.execute-api.us-east-1.amazonaws.com/desarrollo/
 - [ ] Prueba completa con login: compra + WebPay, antifraude, recomendaciones y dashboard.
 - [ ] Ensayar la demo (DEMO_PRESENTACION.md) y explicar RabbitMQ vs Kafka.
