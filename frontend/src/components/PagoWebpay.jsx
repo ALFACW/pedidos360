@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Boton, Campo, Modal, estiloCampo } from './ui';
 
 // Tarjeta de prueba de Transbank (ambiente de integración)
 const TARJETA_PRUEBA = '4051885600446623';
 
 /** Formulario de pago: registra el intento (Kafka, antifraude) y redirige a WebPay con un POST de token_ws. */
-export function PagoWebpay({ pedido, apiBaseUrl, getAccessToken, onCerrar }) {
+export function PagoWebpay({ pedido, apiBaseUrl, getAccessToken, formatCLP, onCerrar }) {
   const [numeroTarjeta, setNumeroTarjeta] = useState(TARJETA_PRUEBA);
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -36,26 +37,24 @@ export function PagoWebpay({ pedido, apiBaseUrl, getAccessToken, onCerrar }) {
   };
 
   return (
-    <div className="modal-backdrop" onClick={onCerrar}>
-      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-        <h3>💳 Pagar pedido {pedido.orderNumber}</h3>
-        <form onSubmit={pagar}>
-          <div className="form-group">
-            <label>Número de tarjeta:</label>
-            <input required pattern="\d{16}" maxLength={16} value={numeroTarjeta}
-                   onChange={(e) => setNumeroTarjeta(e.target.value.replace(/\D/g, ''))} />
-            <small>Prueba Transbank: {TARJETA_PRUEBA} · CVV 123 · RUT 11.111.111-1 · clave 123</small>
-          </div>
-          {error && <p style={{ color: '#dc2626' }}>{error}</p>}
-          <div className="modal-actions">
-            <button type="button" className="btn-secondary" onClick={onCerrar}>Pagar después</button>
-            <button type="submit" className="btn-primary" disabled={enviando}>
-              {enviando ? 'Conectando con WebPay...' : 'Pagar con WebPay'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal titulo={`Pagar ${pedido.orderNumber}`} onCerrar={onCerrar}>
+      <form onSubmit={pagar} className="space-y-5">
+        <p className="flex items-baseline justify-between border-b border-tinta pb-3">
+          <span className="font-display uppercase text-gris">Total</span>
+          <span className="font-display text-4xl font-bold">{formatCLP(pedido.total)}</span>
+        </p>
+        <Campo etiqueta="Número de tarjeta">
+          <input required inputMode="numeric" pattern="\d{16}" maxLength={16} value={numeroTarjeta} className={estiloCampo}
+                 onChange={(e) => setNumeroTarjeta(e.target.value.replace(/\D/g, ''))} />
+        </Campo>
+        <p className="text-sm text-gris">Tarjeta de prueba de Transbank: {TARJETA_PRUEBA}. En WebPay usa CVV 123, RUT 11.111.111-1 y clave 123.</p>
+        {error && <p role="alert" className="border-l-4 border-error bg-placa p-3 text-error">{error}</p>}
+        <div className="flex gap-3">
+          <Boton type="button" variante="secundario" onClick={onCerrar} className="flex-1">Pagar después</Boton>
+          <Boton type="submit" disabled={enviando} className="flex-1">{enviando ? 'Conectando con WebPay...' : 'Pagar con WebPay'}</Boton>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

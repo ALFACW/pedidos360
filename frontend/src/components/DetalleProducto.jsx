@@ -1,17 +1,23 @@
+import { Boton, Modal } from './ui';
+
 /** Detalle de un producto. Abrirlo llama a GET /products/{id}, que publica la interacción VER en Kafka. */
 export function DetalleProducto({ producto, formatCLP, onAgregar, onCerrar }) {
   return (
-    <div className="modal-backdrop" onClick={onCerrar}>
-      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-        <div className="card-icon">{producto.icon || '📦'}</div>
-        <span className="card-category">{producto.category}</span>
-        <h3>{producto.name}</h3>
-        <p>{formatCLP(producto.price)} · Stock: {producto.stock} uds.</p>
-        <div className="modal-actions">
-          <button className="btn-secondary" onClick={onCerrar}>Cerrar</button>
-          <button className="btn-primary" onClick={() => { onAgregar(producto); onCerrar(); }}>+ Añadir al carrito</button>
+    <Modal titulo={producto.name} onCerrar={onCerrar} ancho="max-w-2xl">
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div className="grid aspect-square place-items-center bg-placa text-9xl" aria-hidden="true">{producto.icon || '📦'}</div>
+        <div className="flex flex-col">
+          <dl className="divide-y divide-tinta border-y border-tinta">
+            {[['Categoría', producto.category], ['Precio', formatCLP(producto.price)], ['Disponibles', `${producto.stock} unidades`]].map(([k, v]) => (
+              <div key={k} className="flex justify-between py-2">
+                <dt className="font-display uppercase text-gris">{k}</dt>
+                <dd className="font-semibold">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          <Boton className="mt-auto w-full" onClick={() => { onAgregar(producto); onCerrar(); }}>Agregar al carrito</Boton>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
