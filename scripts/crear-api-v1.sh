@@ -47,6 +47,7 @@ POST   /api/v1/cart/items                JWT
 GET    /api/v1/pagos/health              NONE
 POST   /api/v1/pagos/iniciar             JWT
 POST   /api/v1/pagos/confirmar           JWT
+GET    /api/v1/pagos/alertas             JWT
 GET    /api/v1/recomendaciones/health    NONE
 GET    /api/v1/recomendaciones           JWT
 GET    /api/v1/recomendaciones/metricas  JWT

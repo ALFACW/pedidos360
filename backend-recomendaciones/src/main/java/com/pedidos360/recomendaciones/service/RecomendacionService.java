@@ -73,6 +73,7 @@ public class RecomendacionService {
         Map<String, Long> porAccion = todas.stream().collect(Collectors.groupingBy(Interaccion::getAccion, Collectors.counting()));
         return Map.of(
                 "total", todas.size(),
+                "usuarios", todas.stream().map(Interaccion::getUsuario).distinct().count(),
                 "ver", porAccion.getOrDefault("VER", 0L),
                 "carrito", porAccion.getOrDefault("CARRITO", 0L),
                 "compras", porAccion.getOrDefault("COMPRA", 0L),

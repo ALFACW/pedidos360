@@ -2,6 +2,7 @@ package com.pedidos360.payments.controller;
 
 import com.pedidos360.payments.dto.ConfirmacionPagoDTO;
 import com.pedidos360.payments.dto.SolicitudPagoDTO;
+import com.pedidos360.payments.service.DeteccionFraudeService;
 import com.pedidos360.payments.service.PagoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,10 +20,16 @@ import java.util.Map;
 public class PagoController {
 
     private final PagoService pagoService;
+    private final DeteccionFraudeService deteccionFraudeService;
 
     @GetMapping("/health")
     public Map<String, String> health() {
         return Map.of("status", "UP");
+    }
+
+    @GetMapping("/alertas")
+    public Map<String, Object> alertas() {
+        return deteccionFraudeService.resumen();
     }
 
     @PostMapping("/iniciar")

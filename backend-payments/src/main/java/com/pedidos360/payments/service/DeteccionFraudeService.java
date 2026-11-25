@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 
 /** Regla antifraude: la misma tarjeta más de 3 veces en 10 segundos se bloquea 30 minutos. */
 @Slf4j
@@ -30,6 +31,13 @@ public class DeteccionFraudeService {
         return estadoRepository.findById(tarjeta)
                 .map(estado -> estado.getBloqueadoHasta() != null && Instant.now().isBefore(estado.getBloqueadoHasta()))
                 .orElse(false);
+    }
+
+    /** Para el dashboard: últimas alertas y cuántas tarjetas siguen bloqueadas. */
+    public Map<String, Object> resumen() {
+        return Map.of(
+                "alertas", alertaRepository.findTop10ByOrderByFechaDesc(),
+                "tarjetasBloqueadas", estadoRepository.countByBloqueadoHastaAfter(Instant.now()));
     }
 
     @Transactional
