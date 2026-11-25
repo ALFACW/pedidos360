@@ -33,6 +33,9 @@ public class ProductEntity {
     @Column(length = 20)
     private String icon;
 
+    @Column(name = "image_url")
+    private String imagen;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -82,6 +85,14 @@ public class ProductEntity {
 
     public void setIcon(String icon) {
         this.icon = icon;
+    }
+
+    public String getImagen() {
+        return imagen;
+    }
+
+    public void setImagen(String imagen) {
+        this.imagen = imagen;
     }
 
     public LocalDateTime getCreatedAt() {

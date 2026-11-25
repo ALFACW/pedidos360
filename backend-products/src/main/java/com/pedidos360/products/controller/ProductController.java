@@ -75,6 +75,7 @@ public class ProductController {
         product.setStock(((Number) body.get("stock")).intValue());
         product.setCategory((String) body.get("category"));
         product.setIcon(body.get("icon") == null ? "📦" : body.get("icon").toString());
+        product.setImagen((String) body.get("imagen"));
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(productRepository.save(product)));
     }
 
@@ -95,6 +96,8 @@ public class ProductController {
             product.setCategory((String) body.get("category"));
         if (body.containsKey("icon"))
             product.setIcon((String) body.get("icon"));
+        if (body.containsKey("imagen"))
+            product.setImagen((String) body.get("imagen"));
         return ResponseEntity.ok(toResponse(productRepository.save(product)));
     }
 
@@ -117,6 +120,7 @@ public class ProductController {
         response.put("stock", product.getStock());
         response.put("category", product.getCategory());
         response.put("icon", product.getIcon());
+        response.put("imagen", product.getImagen());
         return response;
     }
 }

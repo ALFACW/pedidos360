@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS products (
     stock INT NOT NULL DEFAULT 0,
     category VARCHAR(80) NOT NULL,
     icon VARCHAR(20) DEFAULT '📦',
+    image_url VARCHAR(300),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -75,13 +76,16 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS customer_email VARCHAR(254);
 -- DATOS INICIALES (SEMILLA)
 -- =====================================================================
 
-INSERT INTO products (name, price, stock, category, icon) VALUES
-('MacBook Pro M3 Max 16"', 2499.99, 12, 'Computación', '💻'),
-('Monitor Dell UltraSharp 32" 4K', 799.50, 25, 'Monitores', '🖥️'),
-('Teclado Mecánico Keychron Q1 Pro', 189.90, 40, 'Accesorios', '⌨️'),
-('Mouse Logitech MX Master 3S', 99.90, 50, 'Accesorios', '🖱️'),
-('Auriculares Sony WH-1000XM5 ANC', 349.00, 30, 'Audio', '🎧'),
-('Silla Ergonómica Herman Miller Aeron', 1250.00, 8, 'Mobiliario', '🪑')
+-- Fotos de Unsplash (licencia Unsplash), servidas por el frontend en assets/
+ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url VARCHAR(300);
+
+INSERT INTO products (name, price, stock, category, icon, image_url) VALUES
+('MacBook Pro M3 Max 16"', 2499.99, 12, 'Computación', '💻', 'assets/producto-1.jpg'),
+('Monitor Dell UltraSharp 32" 4K', 799.50, 25, 'Monitores', '🖥️', 'assets/producto-2.jpg'),
+('Teclado Mecánico Keychron Q1 Pro', 189.90, 40, 'Accesorios', '⌨️', 'assets/producto-3.jpg'),
+('Mouse Logitech MX Master 3S', 99.90, 50, 'Accesorios', '🖱️', 'assets/producto-4.jpg'),
+('Auriculares Sony WH-1000XM5 ANC', 349.00, 30, 'Audio', '🎧', 'assets/producto-5.jpg'),
+('Silla Ergonómica Herman Miller Aeron', 1250.00, 8, 'Mobiliario', '🪑', 'assets/producto-6.jpg')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO users (name, email, role, status) VALUES
