@@ -9,7 +9,7 @@ BACKEND=$(aws ec2 describe-instances --instance-ids "$(ec2_id pedidos360-backend
 RDS=$(aws rds describe-db-instances --db-instance-identifier pedidos360-db --query "DBInstances[0].Endpoint.Address" --output text)
 FRONT_API=$(aws apigatewayv2 get-apis --query "Items[?Name=='pedidos360-frontend'].ApiId | [0]" --output text)
 ECR="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-1.amazonaws.com"
-SSH="ssh -i $LLAVES/pedidos360-private.pem -o ProxyCommand=\"ssh -i $LLAVES/pedidos360-publica.pem -W %h:%p ec2-user@$BASTION\" ec2-user@$BACKEND"
+SSH="ssh -o StrictHostKeyChecking=accept-new -i $LLAVES/pedidos360-private.pem -o ProxyCommand=\"ssh -i $LLAVES/pedidos360-publica.pem -W %h:%p ec2-user@$BASTION\" ec2-user@$BACKEND"
 
 ENV_SERVIDOR=$(mktemp)
 trap 'rm -f "$ENV_SERVIDOR"' EXIT
@@ -33,7 +33,7 @@ cd ~/pedidos360
 set -a; source .env; set +a
 export PGPASSWORD="$DB_PASSWORD"
 PSQL="docker run --rm -i -e PGPASSWORD postgres:16-alpine psql -h $2 -U pedidos360 -d pedidos360db -v ON_ERROR_STOP=1"
-if [ "$($PSQL -tAc "SELECT to_regclass('public.products') IS NULL")" = "t" ]; then $PSQL < database/schema.sql; fi
+if [ "$($PSQL -tAc "SELECT to_regclass('public.products') IS NULL" </dev/null)" = "t" ]; then $PSQL < database/schema.sql; fi
 docker compose -f docker-compose.kafka.yml up -d
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$1"
 docker compose -f docker-compose.yml -f docker-compose.aws.yml pull -q
