@@ -9,7 +9,8 @@ import { Dashboard } from './components/Dashboard';
 function App() {
   const { instance, accounts } = useMsal();
   const isAuthenticated = accounts.length > 0;
-  const currentAccount = accounts[0];
+  // Cuenta elegida en el login (si hay varias en la sesión, no se usa simplemente la primera)
+  const currentAccount = instance.getActiveAccount() || accounts[0];
   const [isAdmin, setIsAdmin] = useState((currentAccount?.idTokenClaims?.roles || []).includes('Admin'));
 
   // Navegación
@@ -76,7 +77,8 @@ function App() {
   const handleLogin = async () => {
     try {
       setAlert(null);
-      await instance.loginPopup({ ...loginRequest, prompt: 'select_account' });
+      const { account } = await instance.loginPopup({ ...loginRequest, prompt: 'select_account' });
+      instance.setActiveAccount(account);
       showAlert('¡Sesión iniciada con éxito en Microsoft Entra ID!');
     } catch (err) {
       showAlert('Error al iniciar sesión: ' + (err.message || err), 'error');
@@ -137,14 +139,14 @@ function App() {
         console.warn('No se pudo determinar el rol:', e);
       }
     })();
-  }, [isAuthenticated, apiBaseUrl]);
+  }, [isAuthenticated, currentAccount?.homeAccountId, apiBaseUrl]);
   // Cargar datos cuando se autentica
   useEffect(() => {
     if (isAuthenticated) {
       loadProducts();
       loadOrders();
     }
-  }, [isAuthenticated, apiBaseUrl]);
+  }, [isAuthenticated, currentAccount?.homeAccountId, apiBaseUrl]);
 
   // La lista de usuarios solo es accesible para Admin
   useEffect(() => {
@@ -1121,6 +1123,7 @@ function App() {
                   <div><strong>iss (Issuer):</strong> <code>{decodedToken.iss}</code></div>
                   <div><strong>Usuario:</strong> <code>{decodedToken.name || decodedToken.preferred_username}</code></div>
                   <div><strong>Email:</strong> <code>{decodedToken.preferred_username || decodedToken.email}</code></div>
+                  <div><strong>roles:</strong> <code>{(decodedToken.roles || ['(sin rol: Cliente)']).join(', ')}</code></div>
                 </div>
                 <details style={{ marginTop: '0.8rem' }}>
                   <summary style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 600 }}>🔍 Ver JSON Completo Decodificado</summary>
