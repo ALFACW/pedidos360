@@ -14,7 +14,7 @@ export MSYS_NO_PATHCONV=1   # Git Bash: no convertir rutas "/api/..." en rutas d
 REGION="us-east-1"
 API_NAME="${API_NAME:-pedidos360-api-v1}"
 STAGE="${STAGE:-desarrollo}"
-FRONTEND_ORIGIN="${FRONTEND_ORIGIN:-https://44-221-145-83.nip.io}"
+FRONTEND_ORIGIN="${FRONTEND_ORIGIN:-https://ahdle7i9n6.execute-api.us-east-1.amazonaws.com}"
 TENANT_ID="e5372bf0-c5e3-4286-887c-79069f209c1f"
 AUDIENCE="96aa35e3-1c70-4e36-8a41-0e1089f78df1"
 R="--region $REGION"
@@ -43,6 +43,20 @@ PUT    /api/v1/users/{id}                JWT
 DELETE /api/v1/users/{id}                JWT
 GET    /api/v1/cart/health               NONE
 GET    /api/v1/cart                      JWT
+POST   /api/v1/cart/items                JWT
+GET    /api/v1/pagos/health              NONE
+POST   /api/v1/pagos/iniciar             JWT
+POST   /api/v1/pagos/confirmar           JWT
+GET    /api/v1/recomendaciones/health    NONE
+GET    /api/v1/recomendaciones           JWT
+GET    /api/v1/kafka/health              NONE
+GET    /api/v1/kafka/topicos             JWT
+POST   /api/v1/kafka/topicos             JWT
+GET    /api/v1/kafka/topicos/{nombre}    JWT
+PUT    /api/v1/kafka/topicos/{nombre}    JWT
+DELETE /api/v1/kafka/topicos/{nombre}    JWT
+GET    /api/v1/kafka/grupos              JWT
+GET    /api/v1/kafka/grupos/{id}         JWT
 GET    /api/v1/rabbit/health             NONE
 POST   /api/v1/rabbit/queues             JWT
 GET    /api/v1/rabbit/queues/{name}      JWT
@@ -97,19 +111,7 @@ echo "$ROUTES" | while read -r METHOD ROUTE_PATH AUTH; do
   echo "   + $KEY ($AUTH)"
 done
 
-echo "4) Verificando que no queden rutas ANY ni {proxy+}..."
-aws apigatewayv2 get-routes $R --api-id "$API_ID" \
-  --query "Items[?starts_with(RouteKey, 'ANY ') || contains(RouteKey, '{proxy+}')].[RouteId,RouteKey,Target]" --output text |
-while IFS=$'\t' read -r ROUTE_ID KEY TARGET; do
-  [ -z "$ROUTE_ID" ] && continue
-  aws apigatewayv2 delete-route $R --api-id "$API_ID" --route-id "$ROUTE_ID"
-  echo "   - $KEY (eliminada)"
-  if [ -n "$TARGET" ] && [ "$TARGET" != "None" ]; then
-    aws apigatewayv2 delete-integration $R --api-id "$API_ID" --integration-id "${TARGET#integrations/}" || true
-  fi
-done
-
-echo "5) Etapa '$STAGE' e implementación..."
+echo "4) Etapa '$STAGE' e implementación..."
 aws apigatewayv2 get-stage $R --api-id "$API_ID" --stage-name "$STAGE" >/dev/null 2>&1 \
   || aws apigatewayv2 create-stage $R --api-id "$API_ID" --stage-name "$STAGE" --tags Proyecto=pedidos360 >/dev/null
 DEPLOYMENT_ID=$(aws apigatewayv2 create-deployment $R --api-id "$API_ID" --stage-name "$STAGE" \

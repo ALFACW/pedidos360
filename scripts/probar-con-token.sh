@@ -8,5 +8,5 @@ if [ -z "$TOKEN" ]; then
 fi
 
 echo "=== PROBANDO ENDPOINT PROTEGIDO CON TOKEN (200 OK) ==="
-curl -i -H "Authorization: Bearer $TOKEN" https://fkiduebsb9.execute-api.us-east-1.amazonaws.com/desarrollo/api/v1/products
+curl -i -H "Authorization: Bearer $TOKEN" https://t13j9mbqg7.execute-api.us-east-1.amazonaws.com/desarrollo/api/v1/products
 echo ""
