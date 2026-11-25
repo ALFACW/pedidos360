@@ -66,7 +66,7 @@ export function useRetornoWebpay({ activo, apiBaseUrl, getAccessToken, onResulta
     if (!activo || (!token && !params.get('TBK_TOKEN'))) return;
     window.history.replaceState(null, '', window.location.pathname);
     if (!token) {
-      onResultado('Pago anulado en WebPay', 'error');
+      onResultado('Anulaste el pago en WebPay y no se hizo ningún cobro. Tu pedido sigue pendiente: puedes reanudar el pago o cancelarlo.', 'error');
       return;
     }
     (async () => {
