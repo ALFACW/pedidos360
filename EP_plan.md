@@ -1,4 +1,4 @@
-﻿Plan de trabajo – EP1 y EP2 (Pedidos360)
+Plan de trabajo – EP1 y EP2 (Pedidos360)
 
 Resumen objetivo:
 Implementar la arquitectura Cloud Native solicitada: frontend + AWS API Gateway + microservicios Spring Boot en EC2 + IDaaS (MSAL/Azure Entra) con autenticación basada en JWT. Para el despliegue del proyecto, mantener frontend y backend en instancias EC2 separadas.
@@ -85,7 +85,7 @@ Criterios de entrega EP2 (presentación):
 
 Revisión de continuación (2026-10-06): ambos archivos Compose pasan la validación de configuración. Se corrigió `scripts/probar-con-token.sh`, que antes enviaba una cadena de máscara en vez del token Bearer recibido. No se ejecutó ningún cambio en AWS: AWS CLI está instalado, pero las credenciales actuales fallan con `InvalidClientTokenId`. Antes del despliegue remoto hay que renovar/autenticar credenciales y confirmar las EC2 y el API Gateway destino.
 
-Próximo: renovar credenciales AWS válidas; confirmar las instancias EC2 backend/frontend, el RDS y la API Gateway (región `us-east-1`, API `3hvdy2quhe` según los scripts); después desplegar las dos composiciones, revisar rutas/CORS/authorizer y ejecutar las pruebas pública y autenticada.
+Nota (2026-11-25): las credenciales se renovaron y el despliegue en AWS se completó entre el 2026-10-07 y el 2026-10-08 (ver Fase E). El API `3hvdy2quhe` y el `4dyx4unmg5` quedaron obsoletos; el API vigente del backend es `pedidos360-api-v1` (`fkiduebsb9`).
 
 
 Plan de cierre antes de AWS (2026-10-06)
@@ -100,22 +100,54 @@ Fase A - Verificacion local (sin AWS)
 
 Fase B - Identidad
 - [x] B1. Access token con claim email/upn (optional claims en Entra); si falta, orders responde 400.
-- [ ] B2. JWT_AUDIENCE y FRONTEND_ORIGIN de produccion confirmados; scope access_as_user autorizado.
+- [x] B2. JWT_AUDIENCE y FRONTEND_ORIGIN de produccion confirmados (origen https://44-221-145-83.nip.io); el scope usado es `read-wirte` (VITE_API_SCOPE), no access_as_user.
+- [x] B3. Roles Admin/Cliente: el rol Admin se asigna como App role en Entra ID (ADMIN_EMAILS vacio por defecto).
 
 Fase C - Correo de produccion
-- [ ] C1. Elegir proveedor (SES con remitente/dominio verificado y salida de sandbox, o Resend con dominio verificado).
-- [ ] C2. Definir MAIL_* reales como secretos (nunca en el repo).
+- [x] C1. Proveedor elegido: SMTP de Gmail (MAIL_* tomados del .env local por scripts/desplegar-backend-privado.sh).
+- [x] C2. MAIL_* reales fuera del repo (solo en el .env del servidor, chmod 600). Ver E4.
 
 Fase D - Repositorio
-- [ ] D1. Commit de los cambios actuales y push; luego eliminar stash@{0}.
+- [x] D1a. Commit de los cambios (2026-11-25).
+- [ ] D1b. Configurar el remoto de GitHub y hacer push (hoy el repo NO tiene remoto; EP3 se entrega como enlace de GitHub).
+- [ ] D1c. Revisar y eliminar stash@{0} ("Auto-stash ... before migration", sobre main).
 
 Fase E - Infraestructura AWS (requiere credenciales validas)
-- [ ] E1. Renovar credenciales AWS (hoy: InvalidClientTokenId) y confirmar region us-east-1.
-- [ ] E2. Definir EC2 backend/frontend (tamano), RDS con sslmode=require, API Gateway (API 3hvdy2quhe) y alojamiento del frontend.
-- [ ] E3. Security groups: RabbitMQ y puertos de servicios no expuestos; HTTPS en el borde.
+- [x] E1. Credenciales renovadas, region us-east-1. (Las credenciales de AWS Academy expiran: renovarlas antes de la presentacion.)
+- [x] E2. VPC con subred publica (EC2 frontend + bastion, Caddy HTTPS, EIP 44.221.145.83) y privada (EC2 backend 10.0.132.193, salida por NAT); RDS por VPC peering; imagenes en ECR; API Gateway pedidos360-api-v1 (fkiduebsb9) -> VPC Link -> ALB interno; API pedidos360-frontend (e3fc0mjbec).
+- [x] E3. Backend y RabbitMQ sin IP publica (solo accesibles via bastion/VPC Link); HTTPS en API Gateway y Caddy.
 - [ ] E4. Secretos en SSM Parameter Store o Secrets Manager, no .env en el servidor.
 - [ ] E5. Alertas de presupuesto/costos.
-- [ ] E6. Desplegar ambos Compose, revisar rutas/CORS/authorizer y ejecutar pruebas publica y autenticada.
+- [x] E6. Ambos Compose desplegados (scripts/desplegar-backend-privado.sh); rutas, CORS y autorizador JWT creados con scripts/crear-api-v1.sh.
+- [x] E7. Rutas del API Gateway: una por metodo y endpoint (30 rutas, sin ANY ni {proxy+}), segun lo pedido por el docente. El API del frontend solo expone GET / y GET /{proxy+}. Se eliminaron los scripts antiguos que creaban rutas ANY (apuntar-apigateway-vpclink.sh, configurar-jwt-apigateway.ps1, update-ip.ps1).
+- [ ] E8. Volver a ejecutar scripts/crear-api-v1.sh y scripts/crear-api-frontend.sh con credenciales vigentes para borrar en AWS cualquier ruta ANY que quede, y eliminar (o dejar de mostrar) los APIs antiguos 3hvdy2quhe / 4dyx4unmg5 si siguen existiendo.
 
 Fase F - Entregables EP2
 - [ ] F1. Evidencia (capturas/logs), README y slides con arquitectura y demo.
+
+
+Evaluacion 2 - EP3 (encargo, RabbitMQ) y EP4 (presentacion)
+
+Alcance: incorporar RabbitMQ con colas, exchanges y DLQ para tareas asincronas, sin afectar la logica existente. Frontend: el docente acepto React (Angular o React).
+
+Fase G - Mensajeria (EP3)
+- [x] G1. Flujo asincrono: ms-pedidos publica order.created (outbox transaccional) -> ms-pagos procesa y publica payment.approved/rejected -> ms-pedidos actualiza el pedido y descuenta stock; ms-notificaciones envia el correo.
+- [x] G2. Exchanges: pedidos360.events (topic) y pedidos360.dlx (direct).
+- [x] G3. Tres colas con su DLQ: pedidos360.payments.order-created, pedidos360.orders.payment-results y pedidos360.notifications.payment-results (.queue / .dead).
+- [x] G4. Nombres centralizados en una clase RabbitConfig (@Configuration) por microservicio, con beans Queue/Exchange/Binding; sin nombres sueltos en el codigo de negocio.
+- [x] G5. Consumidores con @RabbitListener agrupados por dominio; ACK manual (RabbitAckHandler): error no recuperable -> NACK a DLQ; error recuperable -> reintentos con backoff y luego DLQ; todo registrado en logs.
+- [x] G6. Idempotencia: payment_inbox (pagos) y event_id unico (notificaciones).
+- [x] G7. Microservicio administrador (ms-rabbit-admin): POST/DELETE de colas, exchanges y bindings en /api/v1/rabbit, logica en RabbitAdminService, validacion con DTO + Bean Validation, recursos pedidos360.* protegidos (409).
+- [x] G8. Pruebas: mvn test pasa en orders, payments, notifications, rabbit-admin, products y users (2026-11-25).
+- [ ] G9. (Opcional, no se hara) Colas quorum para alta disponibilidad real en el cluster; hoy son colas clasicas durables.
+
+Fase H - Infraestructura RabbitMQ
+- [x] H1. Cluster de 2 nodos (rabbitmq1, rabbitmq2) en docker-compose.yml, peer discovery classic_config, Erlang cookie compartida, autoheal.
+- [x] H2. Microservicios conectados a ambos nodos (RABBITMQ_ADDRESSES) con nombre de conexion visible (ms-pedidos, ms-pagos, ms-notificaciones, ms-rabbit-admin).
+- [x] H3. docker-compose.aws.yml (imagenes de ECR) desplegado en la EC2 privada.
+
+Fase I - Presentacion EP4
+- [x] I1. Guion de demo con checklist de la pauta: DEMO_PRESENTACION.md.
+- [ ] I2. Renovar credenciales AWS Academy y encender EC2/RDS/NAT antes de la presentacion.
+- [ ] I3. Ensayar la demo completa (5-10 minutos) y tomar capturas de respaldo.
+

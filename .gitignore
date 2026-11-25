@@ -28,3 +28,11 @@ __pycache__/
 # Scratch & temporary
 /extracted_texts/
 actividades/extracted/
+
+# Logs locales
+*.log
+*.err
+
+# Enunciados y pautas de las evaluaciones (no son codigo)
+/EP*_DSY1107_*.pdf
+/Enunciado*.docx

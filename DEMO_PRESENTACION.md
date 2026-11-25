@@ -39,12 +39,25 @@ Mostrar que el backend NO es accesible directamente (desde tu PC falla por timeo
 ssh -i pedidos360-private.pem ec2-user@10.0.132.193            # Connection timed out
 ```
 
-## 2. Ver los contenedores encendidos (en la EC2 privada)
+## 2. docker compose levantando RabbitMQ en la nube (en la EC2 privada)
 
 ```bash
-docker ps --format "table {{.Names}}\t{{.Status}}"
-cd ~/pedidos360 && docker compose -f docker-compose.yml -f docker-compose.aws.yml ps
+cd ~/pedidos360
+alias dc='docker compose -f docker-compose.yml -f docker-compose.aws.yml'
+dc ps --format "table {{.Name}}\t{{.Status}}"      # 7 microservicios + rabbitmq1 + rabbitmq2 (healthy)
 ```
+
+Ejecutar `docker compose` en vivo: se baja el nodo 2 y se vuelve a levantar con `up`. El nodo se reincorpora solo al clúster (`cluster.conf`, peer discovery `classic_config`):
+
+```bash
+dc stop rabbitmq2
+docker exec pedidos360-backend-rabbitmq1-1 rabbitmqctl cluster_status   # Running Nodes: solo rabbit@rabbitmq1
+dc up -d rabbitmq1 rabbitmq2                                            # "Started" para rabbitmq2
+dc ps rabbitmq1 rabbitmq2                                               # esperar (healthy)
+docker exec pedidos360-backend-rabbitmq1-1 rabbitmqctl cluster_status   # Running Nodes: rabbit@rabbitmq1, rabbit@rabbitmq2
+```
+
+Explicar: ambos nodos comparten la Erlang cookie (`RABBITMQ_ERLANG_COOKIE` del `.env`) y los microservicios se conectan con `RABBITMQ_ADDRESSES=rabbitmq1:5672,rabbitmq2:5672`; si un nodo cae, el cliente se conecta al otro.
 
 ## 3. Abrir la consola de RabbitMQ (en tu PC, otra terminal)
 
@@ -59,7 +72,7 @@ Abrir <http://localhost:18672> (usuario y contraseña: `RABBITMQ_USER` / `RABBIT
 
 Qué mostrar:
 
-- **Overview → Nodes**: `rabbit@rabbitmq1` y `rabbit@rabbitmq2` (clúster de 2 nodos).
+- **Overview → Nodes**: `rabbit@rabbitmq1` y `rabbit@rabbitmq2` en verde (clúster de 2 nodos). Arriba a la derecha aparece el nombre del clúster; las dos consolas (18672 y 18673) muestran los mismos nodos, colas y exchanges.
 - **Exchanges**: `pedidos360.events` (**topic**) y `pedidos360.dlx` (**direct**).
 - **Queues**: 3 colas con su DLQ (`.queue` y `.dead` de orders, payments y notifications).
 - **Connections**: `ms-pedidos`, `ms-pagos`, `ms-notificaciones` (y `ms-rabbit-admin` después de su primera petición), en lugar de solo IP:puerto.
@@ -95,7 +108,29 @@ docker logs -f pedidos360-backend-ms-notificaciones-1   # "ACK cola=... " y "Pay
 
 En RabbitMQ → Exchanges → `pedidos360.events` → *Publish message*, routing key `payment.approved`, payload `{"eventType":"PAYMENT_APPROVED"}` (sin `eventId`). El consumidor lo rechaza con NACK y aparece en `pedidos360.notifications.payment-results.dead` y `pedidos360.orders.payment-results.dead`. En los logs: `NACK -> DLQ (mensaje inválido)`.
 
-## 7. API Gateway valida el JWT
+## 7. API Manager en la consola de AWS
+
+API Gateway → APIs:
+
+- **`pedidos360-api-v1`** (backend) y **`pedidos360-frontend`** (frontend): dos APIs HTTP separadas, etapa `desarrollo` desplegada.
+- **Routes** de `pedidos360-api-v1`: **una ruta por método y endpoint**, sin `ANY` ni `{proxy+}` (30 rutas: `GET /api/v1/products`, `POST /api/v1/products`, `PUT /api/v1/products/{id}`, `DELETE /api/v1/products/{id}`, …). Coinciden con los `@GetMapping`/`@PostMapping`/`@PutMapping`/`@DeleteMapping` de los controladores. Las rutas protegidas muestran el candado **JWT**; `/health` y `/public` no.
+- **Integrations**: cada ruta tiene su integración propia → **VPC Link** `pedidos360-vpclink` → ALB interno (el backend no tiene IP pública).
+- **Authorization**: autorizador `entra-id-jwt` (issuer `https://login.microsoftonline.com/<tenant>/v2.0`, audience = Application ID del API).
+- **CORS**: origen permitido solo el frontend; métodos `GET, POST, PUT, DELETE, OPTIONS`.
+- **Routes** de `pedidos360-frontend`: solo `GET /` y `GET /{proxy+}` (sitio estático; `{proxy+}` es necesario porque los archivos JS/CSS tienen un hash en el nombre que cambia en cada build).
+
+Las rutas se crean con `scripts/crear-api-v1.sh` y `scripts/crear-api-frontend.sh`.
+
+## 8. IDaaS: tenant y usuarios en Entra ID
+
+Portal de Azure → Microsoft Entra ID:
+
+- **Overview**: nombre del tenant y Tenant ID (el mismo del issuer del autorizador).
+- **Users**: usuarios registrados (Admin y Cliente).
+- **App registrations**: la app registrada (SPA con la Redirect URI del frontend; *Expose an API* → scope `read-wirte`) y sus **App roles**; el rol Admin se asigna en *Enterprise applications → Users and groups*.
+- En el frontend, el botón **"🔑 Ver Token JWT"** muestra el access token y sus claims decodificados (`aud`, `iss`, correo). El login es OAuth 2.0 / OpenID Connect con MSAL (Authorization Code + PKCE).
+
+## 9. API Gateway valida el JWT
 
 ```bash
 curl -i https://fkiduebsb9.execute-api.us-east-1.amazonaws.com/desarrollo/api/v1/products                      # 401
@@ -103,9 +138,9 @@ curl -i -H "Authorization: Bearer abc.def.ghi" https://fkiduebsb9.execute-api.us
 curl -i https://fkiduebsb9.execute-api.us-east-1.amazonaws.com/desarrollo/api/v1/products/health              # 200 (ruta pública)
 ```
 
-Con el token del botón "Ver token" del frontend (Postman, `Authorization: Bearer <token>`) responde 200.
+Con el token del botón "🔑 Ver Token JWT" del frontend (Postman, `Authorization: Bearer <token>`) responde 200.
 
-## 8. Microservicio administrador de RabbitMQ (Postman, usuario Admin)
+## 10. Microservicio administrador de RabbitMQ (Postman, usuario Admin)
 
 ```http
 POST {{api}}/api/v1/rabbit/exchanges   {"name": "demo.direct", "type": "direct"}
@@ -115,3 +150,21 @@ DELETE {{api}}/api/v1/rabbit/queues/demo.queue
 POST {{api}}/api/v1/rabbit/queues      {"name": ""}                 -> 400 con el detalle del error
 DELETE {{api}}/api/v1/rabbit/queues/pedidos360.orders.payment-results.queue -> 409 (protegida)
 ```
+
+---
+
+## Checklist EP4 → paso de la demo
+
+| Requisito de la pauta | Paso |
+|---|---|
+| Instancia del API Manager en funcionamiento | 7 |
+| Configuración del API Manager que llama a los endpoints del backend | 7 |
+| Frontend consume los endpoints a través del API Manager | 4 |
+| API Manager valida JWT (rechaza inválidos, acepta válidos) | 9 |
+| Tenant en IDaaS y usuarios registrados | 8 |
+| Frontend usa OAuth 2.0 / OIDC para obtener un JWT válido | 4 y 8 |
+| Backend y frontend desplegados, activos e integrados en la nube | 1, 2 y 4 |
+| Dos nodos RabbitMQ en clúster | 2 y 3 |
+| Tres colas con su DLQ funcionando | 3, 5 y 6 |
+| Exchanges direct y topic | 3 |
+| docker-compose levantando RabbitMQ en la nube | 2 |

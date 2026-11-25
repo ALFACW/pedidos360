@@ -1,0 +1,15 @@
+services:
+  ms-pedidos:
+    image: 468107274970.dkr.ecr.us-east-1.amazonaws.com/pedidos360/ms-pedidos:latest
+  ms-productos:
+    image: 468107274970.dkr.ecr.us-east-1.amazonaws.com/pedidos360/ms-productos:latest
+  ms-usuarios:
+    image: 468107274970.dkr.ecr.us-east-1.amazonaws.com/pedidos360/ms-usuarios:latest
+  ms-carrito:
+    image: 468107274970.dkr.ecr.us-east-1.amazonaws.com/pedidos360/ms-carrito:latest
+  ms-pagos:
+    image: 468107274970.dkr.ecr.us-east-1.amazonaws.com/pedidos360/ms-pagos:latest
+  ms-notificaciones:
+    image: 468107274970.dkr.ecr.us-east-1.amazonaws.com/pedidos360/ms-notificaciones:latest
+  ms-rabbit-admin:
+    image: 468107274970.dkr.ecr.us-east-1.amazonaws.com/pedidos360/ms-rabbit-admin:latest
