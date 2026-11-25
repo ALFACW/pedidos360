@@ -211,6 +211,60 @@ Luego: Dashboard → Alertas (tarjeta `****9999`, 4 intentos). En la tienda, pag
 
 ---
 
+# Bloque principal: RabbitMQ y Kafka (lo que más evalúa el profe)
+
+## 1. Dónde se usa cada uno
+
+```
+                RabbitMQ (tareas)                                    Kafka (eventos)
+ms-pedidos ──order.created / order.cancelled──► ms-pagos      ms-productos ─VER──────┐
+ms-pagos   ──payment.approved / rejected──► ms-pedidos         ms-carrito   ─CARRITO──┼─► interacciones-usuario ─► ms-recomendaciones ─► DynamoDB ─► Dashboard
+                                         └► ms-notificaciones  ms-pedidos   ─COMPRA───┘
+                                                               ms-pagos ─intento──► intentos-pago ─► ms-pagos (deteccion-fraude)
+```
+
+| | RabbitMQ | Kafka |
+|---|---|---|
+| Qué transporta | **Tareas**: "cobra este pedido", "envía este correo" | **Hechos**: "el usuario vio X", "se intentó pagar con la tarjeta Y" |
+| Consumo | Un consumidor procesa el mensaje y se **borra** al confirmar (ACK) | El mensaje **se conserva** (retención); cada grupo lleva su propio offset |
+| Varios lectores | Cada cola tiene un dueño (pagos, pedidos, notificaciones) | Varios grupos leen lo mismo sin afectarse (recomendaciones, antifraude, mañana analítica) |
+| Orden | Por cola | Por **clave** dentro de la partición (usuario, tarjeta) |
+| Errores | NACK, reintento con backoff y **DLQ** | Reintentos con backoff y **tópico .DLT** |
+| Escala | Pocos mensajes, cada uno importante | Alto volumen (cada clic), se procesa en paralelo por particiones |
+
+**Por qué pedidos y pagos NO van a Kafka:** cada mensaje es una orden que debe ejecutarse **una vez**, con confirmación por mensaje y reintento individual; no se necesita releerlos ni que otros servicios los lean. RabbitMQ además rutea por routing key (`payment.#` llega a pedidos y notificaciones).
+
+**Por qué clics e intentos de pago NO van a RabbitMQ:** son muchos, varios servicios los quieren leer, y hay que **conservarlos** (7 días las interacciones) para recalcular recomendaciones. En antifraude, la **clave = tarjeta** garantiza que todos los intentos de una tarjeta llegan **en orden a la misma partición**: así se cuenta bien la ventana de 10 segundos.
+
+## 2. Demostraciones en el panel de RabbitMQ (http://localhost:18672)
+
+1. **Overview → Nodes:** `rabbit@rabbitmq1` y `rabbit@rabbitmq2`: clúster de 2 nodos (Erlang cookie compartida, los servicios se conectan a ambos).
+2. **Exchanges → `pedidos360.events` → Bindings:** las rutas reales: `order.created` y `order.cancelled` → cola de pagos; `payment.#` → colas de pedidos y notificaciones. **`pedidos360.dlx`** (direct) → las 3 colas `.dead`.
+3. **Compra en vivo:** pagar un pedido en la tienda y mirar **Queues** (Message rates): pasa por `payments.order-created.queue` y luego por las dos `payment-results.queue`. Llega el correo.
+4. **El mensaje espera al trabajador (lo que Kafka no hace igual):** en la terminal de la EC2 privada `docker stop pedidos360-backend-ms-notificaciones-1` → pagar otro pedido → en Queues, `notifications.payment-results.queue` queda con **Ready = 1** y **Consumers = 0** → `docker start ...` → baja a 0 y llega el correo. El pedido se pagó igual: el sistema está desacoplado.
+5. **DLQ:** Exchanges → `pedidos360.events` → **Publish message**, routing key `payment.approved`, payload `{"eventType":"PAYMENT_APPROVED"}` (sin eventId) → los consumidores responden NACK → aparece en `orders.payment-results.dead` y `notifications.payment-results.dead` (**Get messages** para verlo).
+6. **Microservicio administrador (Postman, token Admin):** `POST /api/v1/rabbit/exchanges`, `POST /queues` con DLQ, `POST /bindings`, `DELETE /queues/{nombre}`; borrar una cola del sistema responde **409** (protegida).
+
+## 3. Demostraciones en Kafka UI (http://localhost:18090)
+
+1. **Brokers:** 3 brokers, cada uno líder de un tercio de las particiones. Explicar: 3 Zookeeper (mayoría 2 de 3) y `min.insync.replicas=2` + `acks=all`: se puede caer 1 broker sin perder mensajes.
+2. **Topics:** `intentos-pago` e `interacciones-usuario` con **3 particiones y 3 réplicas**; **Settings** muestra `retention.ms` (1 día y 7 días) y `cleanup.policy=delete`.
+3. **Eventos en vivo:** en la tienda (cliente) hacer clic en 2 productos y agregar uno al carrito → **Messages** de `interacciones-usuario`: aparecen con **clave = usuario**, siempre en la misma partición. Al mismo tiempo el Dashboard del Admin los muestra.
+4. **Kafka conserva y retoma (la gran diferencia con RabbitMQ):** `docker stop pedidos360-backend-ms-recomendaciones-1` → hacer 3 clics en la tienda → **Consumers → recomendaciones**: el **lag sube a 3** (los mensajes esperan en el log) → `docker start ...` → el lag vuelve a 0 y procesa desde su último offset.
+5. **Antifraude:** Topics → `intentos-pago` → **Produce Message** 4 veces con key `****9999` y fechas a 2 s de distancia → los 4 caen en **la misma partición** → Dashboard → alerta de fraude; en la tienda, pagar con una tarjeta terminada en 9999 → rechazada.
+6. **Manejo de errores:** Produce Message en `interacciones-usuario` con `{"accion":"BORRAR"}` → el consumidor no se detiene; el mensaje queda en **`interacciones-usuario.DLT`** con el motivo en los headers.
+7. **Microservicio administrador (Postman, token Admin):** `POST /api/v1/kafka/topicos` (3 particiones, 3 réplicas, retención), `PUT` para cambiar retención o aumentar particiones, `GET /grupos/recomendaciones` (offsets y lag por partición), `DELETE` del tópico de prueba.
+
+## 4. Preguntas probables
+
+- **¿Y si todo fuera Kafka?** Se perdería el ruteo por routing key y el ACK/NACK por mensaje; cada consumidor tendría que manejar offsets manualmente para "una tarea, una vez".
+- **¿Y si todo fuera RabbitMQ?** Cada clic se borraría al consumirse: no se podría releer el historial ni sumar nuevos consumidores (analítica) sin duplicar colas; y no hay orden garantizado por tarjeta.
+- **¿Por qué 3 particiones?** Hasta 3 consumidores del mismo grupo en paralelo; más particiones que consumidores no aportan hoy.
+- **¿Qué pasa si se cae un broker?** Otra réplica en sincronía pasa a ser líder; con `min.insync.replicas=2` se siguen aceptando escrituras.
+- **¿Qué pasa si se cae un nodo de RabbitMQ?** Los servicios se conectan a `rabbitmq1,rabbitmq2` y reconectan al otro nodo; al volver, el nodo se reincorpora al clúster.
+
+---
+
 ## Para responder preguntas
 
 **¿Por qué RabbitMQ y Kafka?** RabbitMQ para **tareas** (pedido → pago → correo): cada mensaje lo procesa un consumidor una vez, con ACK, reintentos y DLQ. Kafka para **eventos** (clics, carrito, compras, intentos de pago): alto volumen, se conservan para releerlos y varios servicios los consumen por separado.
