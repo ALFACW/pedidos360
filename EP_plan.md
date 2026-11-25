@@ -151,3 +151,19 @@ Fase I - Presentacion EP4
 - [ ] I2. Renovar credenciales AWS Academy y encender EC2/RDS/NAT antes de la presentacion.
 - [ ] I3. Ensayar la demo completa (5-10 minutos) y tomar capturas de respaldo.
 
+
+Evaluacion 3 - EP5 (encargo, Kafka) y EP6 (presentacion) - 2026-11-25
+
+Cambio de cuenta AWS: el laboratorio anterior (468107274970) agoto su saldo; todo se recreo en la cuenta 486702306352 con scripts/infra/01..08. Despues de presentar: scripts/infra/99-eliminar-costosos.sh (NAT, ALB, VPC Link y RDS cobran aunque el laboratorio este apagado).
+
+- [x] Kafka: 3 Zookeeper + 3 brokers + Kafka UI (docker-compose.kafka.yml) en la EC2 backend; 2 topicos de 3 particiones y 3 replicas (+ .DLT).
+- [x] ms-pagos: WebPay integracion (+5) y antifraude (misma tarjeta mas de 3 veces en 10 s -> bloqueo 30 min + alerta) via topico pedidos360.intentos-pago.
+- [x] ms-productos (VER) y ms-carrito (CARRITO) publican en pedidos360.interacciones-usuario; ms-recomendaciones consume y guarda en DynamoDB (+2).
+- [x] ms-administrador-kafka: topicos (crear, listar, describir, modificar, eliminar) y consumer groups (offsets y lag).
+- [x] Errores: DefaultErrorHandler (3 reintentos exponenciales) + DeadLetterPublishingRecoverer (.DLT) + ErrorHandlingDeserializer + @Valid.
+- [x] Dashboard WebSocket (+3): DynamoDB Stream -> Lambda -> API WebSocket -> pestana Dashboard (3 metricas).
+- [x] 2 EC2 (una por API Gateway); rutas por metodo (44 backend, 2 GET frontend); CORS solo la pagina del frontend.
+- [x] Repositorio publico: https://github.com/ALFACW/pedidos360
+- [ ] Agregar en Entra ID la Redirect URI https://ahdle7i9n6.execute-api.us-east-1.amazonaws.com/desarrollo/
+- [ ] Prueba completa con login: compra + WebPay, antifraude, recomendaciones y dashboard.
+- [ ] Ensayar la demo (DEMO_PRESENTACION.md) y explicar RabbitMQ vs Kafka.
