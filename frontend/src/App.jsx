@@ -6,6 +6,7 @@ import { Login } from './components/Login';
 import { Cabecera } from './components/Cabecera';
 import { TituloPagina } from './components/ui';
 import { Tienda } from './components/Tienda';
+import { Hero } from './components/Hero';
 import { Carrito } from './components/Carrito';
 import { Pedidos } from './components/Pedidos';
 import { AdminProductos, AdminUsuarios } from './components/Admin';
@@ -204,6 +205,7 @@ function App() {
     <div className="min-h-screen">
       <Cabecera vista={vista} setVista={setVista} esAdmin={isAdmin} unidadesCarrito={unidades}
                 cuenta={currentAccount} onToken={abrirToken} onSalir={handleLogout} />
+      {vista === 'tienda' && <Hero onVerCategoria={setCategoria} />}
 
       <main className="mx-auto max-w-[1440px] px-4 pb-24 pt-10 sm:px-8">
         <TituloPagina key={`${vista}-${detalleTitulo}`} seccion={seccion} detalle={detalleTitulo} />
@@ -244,6 +246,10 @@ function App() {
         <TokenModal token={token.valor} claims={token.claims} apiBaseUrl={apiBaseUrl} onCerrar={() => setToken(null)}
                     onCopiar={() => { navigator.clipboard.writeText(token.valor); showAlert('Token copiado'); }} />
       )}
+
+      <footer className="mx-auto max-w-[1440px] border-t border-tinta px-4 py-4 text-sm text-gris sm:px-8">
+        Pedidos360. Fotografías de Unsplash (licencia Unsplash).
+      </footer>
 
       <AnimatePresence>
         {aviso && (

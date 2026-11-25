@@ -5,6 +5,7 @@ const VARIANTES = {
   primario: 'bg-tinta text-papel hover:bg-tinta/80',
   secundario: 'border border-tinta hover:bg-tinta hover:text-papel',
   texto: 'underline-offset-4 hover:underline',
+  claro: 'bg-papel text-tinta hover:bg-placa',
 };
 
 export function Boton({ variante = 'primario', className = '', ...props }) {
@@ -64,4 +65,11 @@ export function Modal({ titulo, onCerrar, children, ancho = 'max-w-lg' }) {
       </motion.div>
     </div>
   );
+}
+
+/** Foto del producto (campo imagen); si no tiene, se muestra su ícono sobre la placa gris. */
+export function ImagenProducto({ producto, tamanoEmoji = 'text-6xl', className = '' }) {
+  return producto.imagen
+    ? <img src={producto.imagen} alt={producto.name} loading="lazy" className={`size-full object-cover ${className}`} />
+    : <span className={`grid size-full place-items-center ${tamanoEmoji}`} aria-hidden="true">{producto.icon || '📦'}</span>;
 }

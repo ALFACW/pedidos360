@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
-import { Boton, Campo, Modal, estiloCampo } from './ui';
+import { Boton, Campo, ImagenProducto, Modal, estiloCampo } from './ui';
 
 const CATEGORIAS = ['Computación', 'Monitores', 'Accesorios', 'Audio', 'Mobiliario'];
-const PRODUCTO_VACIO = { name: '', price: '', stock: '', category: 'Computación', icon: '📦' };
+const PRODUCTO_VACIO = { name: '', price: '', stock: '', category: 'Computación', icon: '📦', imagen: '' };
 const USUARIO_VACIO = { name: '', email: '', role: 'CLIENTE', status: 'ACTIVO' };
 
 function Tabla({ columnas, children }) {
@@ -50,7 +50,7 @@ export function AdminProductos({ productos, formatCLP, onGuardar, onEliminar }) 
       <Tabla columnas={['', 'Producto', 'Categoría', 'Precio', 'Stock']}>
         {productos.map((p) => (
           <tr key={p.id}>
-            <td className="py-2 pr-4 text-3xl" aria-hidden="true">{p.icon || '📦'}</td>
+            <td className="py-2 pr-4"><div className="size-14 overflow-hidden bg-placa"><ImagenProducto producto={p} tamanoEmoji="text-3xl" /></div></td>
             <td className="py-2 pr-4 font-display text-lg uppercase">{p.name}</td>
             <td className="py-2 pr-4">{p.category}</td>
             <td className="py-2 pr-4 font-semibold">{formatCLP(p.price)}</td>
@@ -75,6 +75,7 @@ export function AdminProductos({ productos, formatCLP, onGuardar, onEliminar }) 
               </Campo>
               <Campo etiqueta="Ícono"><input className={estiloCampo} value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} /></Campo>
             </div>
+            <Campo etiqueta="URL de imagen"><input className={estiloCampo} placeholder="assets/producto-1.jpg o https://..." value={form.imagen || ''} onChange={(e) => setForm({ ...form, imagen: e.target.value })} /></Campo>
             <Boton type="submit" className="w-full">Guardar producto</Boton>
           </form>
         </Modal>

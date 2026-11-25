@@ -1,5 +1,5 @@
 import { Minus, Plus, X } from 'lucide-react';
-import { Boton } from './ui';
+import { Boton, ImagenProducto } from './ui';
 
 export function Carrito({ carrito, total, formatCLP, onCambiar, onPagar, procesando, onIrTienda }) {
   if (carrito.length === 0) {
@@ -15,7 +15,7 @@ export function Carrito({ carrito, total, formatCLP, onCambiar, onPagar, procesa
       <ul className="divide-y divide-tinta border-y border-tinta">
         {carrito.map((item) => (
           <li key={item.id} className="grid grid-cols-[72px_1fr_auto] items-center gap-4 py-4 sm:grid-cols-[96px_1fr_auto_auto]">
-            <div className="grid aspect-square place-items-center bg-placa text-4xl" aria-hidden="true">{item.icon || '📦'}</div>
+            <div className="aspect-square overflow-hidden bg-placa"><ImagenProducto producto={item} tamanoEmoji="text-4xl" /></div>
             <div>
               <h3 className="font-display text-xl uppercase leading-tight">{item.name}</h3>
               <p className="text-sm text-gris">{item.category}. {formatCLP(item.price)} c/u</p>

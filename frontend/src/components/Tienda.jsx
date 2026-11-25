@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Heart, Plus, Minus } from 'lucide-react';
 import { Recomendaciones } from './Recomendaciones';
-import { estiloCampo } from './ui';
+import { ImagenProducto, estiloCampo } from './ui';
 
 function GrupoFiltro({ titulo, children }) {
   const [abierto, setAbierto] = useState(true);
@@ -26,9 +26,9 @@ export function PlacaProducto({ producto, formatCLP, onVer, onAgregar, indice = 
       className="group"
     >
       <button onClick={() => onVer(producto.id)} aria-label={`Ver detalle de ${producto.name}`}
-              className="relative grid aspect-square w-full place-items-center bg-placa cursor-pointer">
-        <span className="text-8xl transition-transform duration-300 group-hover:scale-110" aria-hidden="true">{producto.icon || '📦'}</span>
-        <Heart size={18} className="absolute left-3 top-3" aria-hidden="true" />
+              className="relative block aspect-square w-full overflow-hidden bg-placa cursor-pointer">
+        <ImagenProducto producto={producto} tamanoEmoji="text-8xl" className="transition-transform duration-500 group-hover:scale-105" />
+        <Heart size={18} className="absolute left-3 top-3 text-papel mix-blend-difference" aria-hidden="true" />
         {producto.stock <= 5 && <span className="absolute right-3 top-3 bg-tinta px-2 py-0.5 font-display text-sm uppercase text-papel">Últimas {producto.stock}</span>}
       </button>
       <div className="mt-3 flex items-start justify-between gap-3">
@@ -52,7 +52,7 @@ export function Tienda({ productos, categoria, setCategoria, busqueda, setBusque
     (categoria === 'Todos' || p.category === categoria) && p.name.toLowerCase().includes(busqueda.toLowerCase()));
 
   return (
-    <div className="mt-10 grid gap-8 lg:grid-cols-[280px_1fr]">
+    <div id="catalogo" className="mt-10 grid scroll-mt-40 gap-8 lg:grid-cols-[280px_1fr]">
       <aside aria-label="Filtros">
         <GrupoFiltro titulo="Buscar">
           <input type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
