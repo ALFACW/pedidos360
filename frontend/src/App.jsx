@@ -233,7 +233,8 @@ function App() {
                          onEliminar={(id) => eliminar('/api/v1/users', id, loadUsers, 'Usuario eliminado')} />
         )}
         {isAdmin && vista === 'dashboard' && (
-          <Dashboard wsUrl={import.meta.env.VITE_DASHBOARD_WS_URL} apiBaseUrl={apiBaseUrl} getAccessToken={getAccessToken} />
+          <Dashboard wsUrl={import.meta.env.VITE_DASHBOARD_WS_URL} apiBaseUrl={apiBaseUrl} getAccessToken={getAccessToken}
+                     pedidos={orders} productos={products} formatCLP={formatCLP} onCompra={() => { loadOrders(); loadProducts(); }} />
         )}
       </main>
 
@@ -241,7 +242,12 @@ function App() {
         <PagoWebpay pedido={pedidoAPagar} apiBaseUrl={apiBaseUrl} getAccessToken={getAccessToken} formatCLP={formatCLP}
                     onCerrar={() => setPedidoAPagar(null)} />
       )}
-      {detalle && <DetalleProducto producto={detalle} formatCLP={formatCLP} onAgregar={addToCart} onCerrar={() => setDetalle(null)} />}
+      <AnimatePresence>
+        {detalle && (
+          <DetalleProducto key="detalle" producto={detalle} productos={products} formatCLP={formatCLP}
+                           onAgregar={addToCart} onVer={verDetalle} onCerrar={() => setDetalle(null)} />
+        )}
+      </AnimatePresence>
       {token && (
         <TokenModal token={token.valor} claims={token.claims} apiBaseUrl={apiBaseUrl} onCerrar={() => setToken(null)}
                     onCopiar={() => { navigator.clipboard.writeText(token.valor); showAlert('Token copiado'); }} />

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 
@@ -72,4 +73,28 @@ export function ImagenProducto({ producto, tamanoEmoji = 'text-6xl', className =
   return producto.imagen
     ? <img src={producto.imagen} alt={producto.name} loading="lazy" className={`size-full object-cover ${className}`} />
     : <span className={`grid size-full place-items-center ${tamanoEmoji}`} aria-hidden="true">{producto.icon || '📦'}</span>;
+}
+
+/** Panel que entra desde la derecha a todo el alto (vista previa de producto). Se cierra con Esc o clic afuera. */
+export function PanelLateral({ titulo, onCerrar, children }) {
+  useEffect(() => {
+    const alPresionar = (e) => e.key === 'Escape' && onCerrar();
+    window.addEventListener('keydown', alPresionar);
+    return () => window.removeEventListener('keydown', alPresionar);
+  }, [onCerrar]);
+  return (
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={titulo}>
+      <motion.div className="absolute inset-0 bg-tinta/50" onClick={onCerrar}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+      <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+                    transition={{ type: 'spring', damping: 32, stiffness: 280 }}
+                    className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col overflow-y-auto bg-papel shadow-2xl">
+        <button onClick={onCerrar} aria-label="Cerrar" autoFocus
+                className="absolute right-3 top-3 z-10 grid size-11 place-items-center bg-papel cursor-pointer hover:bg-placa">
+          <X size={22} />
+        </button>
+        {children}
+      </motion.aside>
+    </div>
+  );
 }
