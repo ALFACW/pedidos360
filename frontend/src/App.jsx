@@ -1,6 +1,10 @@
 import { useMsal } from '@azure/msal-react';
 import { useState, useEffect } from 'react';
 import { loginRequest } from './msalConfig';
+import { PagoWebpay, useRetornoWebpay } from './components/PagoWebpay';
+import { Recomendaciones } from './components/Recomendaciones';
+import { DetalleProducto } from './components/DetalleProducto';
+import { Dashboard } from './components/Dashboard';
 
 function App() {
   const { instance, accounts } = useMsal();
@@ -10,7 +14,7 @@ function App() {
 
   // Navegación
   const [activeTab, setActiveTab] = useState('tienda'); // tienda | carrito | pedidos | productos | usuarios
-  const [apiBaseUrl, setApiBaseUrl] = useState(import.meta.env.VITE_API_BASE_URL || 'https://fkiduebsb9.execute-api.us-east-1.amazonaws.com/desarrollo');
+  const [apiBaseUrl, setApiBaseUrl] = useState(import.meta.env.VITE_API_BASE_URL || 'https://t13j9mbqg7.execute-api.us-east-1.amazonaws.com/desarrollo');
 
   // Estados de datos
   const [products, setProducts] = useState([]);
@@ -35,6 +39,9 @@ function App() {
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [currentToken, setCurrentToken] = useState('');
   const [decodedToken, setDecodedToken] = useState(null);
+  const [pedidoAPagar, setPedidoAPagar] = useState(null);
+  const [detalle, setDetalle] = useState(null);
+  const [interacciones, setInteracciones] = useState(0);
 
   // Formularios
   const formatCLP = (value) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -107,6 +114,13 @@ function App() {
       showAlert('Error al obtener el token: ' + err.message, 'error');
     }
   };
+
+  useRetornoWebpay({
+    activo: isAuthenticated,
+    apiBaseUrl,
+    getAccessToken,
+    onResultado: (texto, tipo) => { showAlert(texto, tipo); setActiveTab('pedidos'); loadOrders(); },
+  });
 
   // El backend decide quién es admin (rol de Entra o ADMIN_EMAILS)
   useEffect(() => {
@@ -269,8 +283,28 @@ function App() {
     }
   };
 
+  // Detalle de producto: ms-productos publica la interacción VER en Kafka
+  const verDetalle = async (id) => {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/products/${id}`, {
+        headers: { Authorization: `Bearer ${await getAccessToken()}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setDetalle(await res.json());
+      setInteracciones((n) => n + 1);
+    } catch (err) {
+      showAlert('Error al cargar el producto: ' + err.message, 'error');
+    }
+  };
+
   // ===================== CARRITO & CHECKOUT =====================
-  const addToCart = (product) => {
+  const addToCart = async (product) => {
+    // ms-carrito publica la interacción CARRITO en Kafka (no bloquea la compra si falla)
+    fetch(`${apiBaseUrl}/api/v1/cart/items`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${await getAccessToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productoId: product.id, nombre: product.name, categoria: product.category }),
+    }).then(() => setInteracciones((n) => n + 1)).catch((e) => console.warn('Interacción no registrada:', e));
     setCart((prev) => {
       const existing = prev.find((i) => i.id === product.id);
       if (existing) {
@@ -316,12 +350,9 @@ function App() {
       const newOrder = await res.json();
 
       setCart([]);
-      setOrderReceipt(newOrder);
+      setPedidoAPagar(newOrder);
       loadOrders();
-      loadProducts();
-      // El pago se confirma de forma asíncrona vía RabbitMQ: refrescar pedidos y stock
-      [1500, 4000, 8000].forEach((ms) => setTimeout(() => { loadOrders(); loadProducts(); }, ms));
-      showAlert('¡Compra simulada y confirmada con éxito! 🎉');
+      showAlert(`Pedido ${newOrder.orderNumber} creado. Completa el pago con WebPay 💳`);
     } catch (err) {
       showAlert('Error al procesar la compra: ' + err.message, 'error');
     } finally {
@@ -515,6 +546,10 @@ function App() {
               👥 Usuarios (CRUD)
             </button>
 
+            <button className={`nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+              📊 Dashboard
+            </button>
+
             </>
 
             )}
@@ -574,13 +609,15 @@ function App() {
               ))}
             </div>
 
+            <Recomendaciones apiBaseUrl={apiBaseUrl} getAccessToken={getAccessToken} actualizar={interacciones} onVer={verDetalle} />
+
             {/* Grilla de Productos */}
             <div className="products-showcase">
               {filteredProducts.map((p) => (
                 <div key={p.id} className="store-product-card">
                   <div className="card-icon">{p.icon || '📦'}</div>
                   <span className="card-category">{p.category}</span>
-                  <h3 className="card-title">{p.name}</h3>
+                  <h3 className="card-title" style={{ cursor: 'pointer' }} onClick={() => verDetalle(p.id)}>{p.name}</h3>
                   <div className="card-footer">
                     <div>
                       <div className="card-price">{formatCLP(p.price)}</div>
@@ -669,7 +706,7 @@ function App() {
                   </div>
 
                   <button className="btn-checkout" onClick={handleCheckout} disabled={loading}>
-                    {loading ? 'Procesando en API Gateway...' : '🚀 Confirmar y Simular Compra'}
+                    {loading ? 'Procesando en API Gateway...' : '🚀 Confirmar y Pagar con WebPay'}
                   </button>
                 </div>
               </div>
@@ -702,6 +739,9 @@ function App() {
                         <div className="order-date">{o.createdAt || 'Reciente'}</div>
                       </div>
                       <span className={`status-tag ${o.status?.toLowerCase()}`}>{o.status || 'CONFIRMADO'}</span>
+                      {o.status === 'PENDIENTE_PAGO' && (
+                        <button className="btn-primary" onClick={() => setPedidoAPagar(o)}>💳 Pagar</button>
+                      )}
                     </div>
 
                     <div className="order-user-tag">👤 Cliente: {o.customerEmail || o.user}</div>
@@ -733,6 +773,8 @@ function App() {
         )}
 
         {/* ==================== VISTA 4: CRUD PRODUCTOS ==================== */}
+        {isAdmin && activeTab === 'dashboard' && <Dashboard wsUrl={import.meta.env.VITE_DASHBOARD_WS_URL} />}
+
         {isAdmin && activeTab === 'productos' && (
           <div className="crud-view">
             <div className="view-header">
@@ -873,6 +915,13 @@ function App() {
       </main>
 
       {/* ==================== MODAL PRODUCTO (CREAR / EDITAR) ==================== */}
+      {pedidoAPagar && (
+        <PagoWebpay pedido={pedidoAPagar} apiBaseUrl={apiBaseUrl} getAccessToken={getAccessToken} onCerrar={() => setPedidoAPagar(null)} />
+      )}
+      {detalle && (
+        <DetalleProducto producto={detalle} formatCLP={formatCLP} onAgregar={addToCart} onCerrar={() => setDetalle(null)} />
+      )}
+
       {productModal.open && (
         <div className="modal-backdrop" onClick={() => setProductModal({ open: false })}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
