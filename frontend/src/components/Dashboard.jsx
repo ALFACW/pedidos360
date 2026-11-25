@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, Package, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Package, ShieldAlert, XCircle } from 'lucide-react';
 
 const VERBOS = { VER: 'vio', CARRITO: 'agregó al carrito', COMPRA: 'compró' };
 const VACIO = { total: 0, usuarios: 0, ver: 0, carrito: 0, compras: 0, vistos: {}, comprados: {}, categorias: {}, ultimas: [] };
@@ -92,6 +92,7 @@ export function Dashboard({ wsUrl, apiBaseUrl, getAccessToken, pedidos, producto
 
   const pagados = pedidos.filter((p) => p.status === 'CONFIRMADO');
   const pendientes = pedidos.filter((p) => p.status === 'PENDIENTE_PAGO');
+  const cancelados = pedidos.filter((p) => p.status === 'CANCELADO');
   const ventas = pagados.reduce((suma, p) => suma + Number(p.total), 0);
   const sinCompra = top(Object.fromEntries(Object.entries(m.vistos).filter(([nombre]) => !m.comprados[nombre])));
   const stockBajo = productos.filter((p) => p.stock <= 5);
@@ -157,6 +158,11 @@ export function Dashboard({ wsUrl, apiBaseUrl, getAccessToken, pedidos, producto
               <AlertTriangle className={pendientes.length ? 'text-error' : 'text-gris'} aria-hidden="true" />
               <span><strong>{pendientes.length} pedidos pendientes de pago</strong>
                 <span className="block text-sm text-gris">Clientes que crearon el pedido pero no terminaron en WebPay</span></span>
+            </li>
+            <li className="flex items-start gap-3 py-3">
+              <XCircle className="text-gris" aria-hidden="true" />
+              <span><strong>{cancelados.length} pedidos cancelados</strong>
+                <span className="block text-sm text-gris">Cancelados por el cliente antes de pagar</span></span>
             </li>
           </ul>
         </section>

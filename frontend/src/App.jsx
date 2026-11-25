@@ -120,6 +120,13 @@ function App() {
     if (isAuthenticated && isAdmin) loadUsers();
   }, [isAuthenticated, isAdmin]);
 
+  // El Admin ve al instante lo que hacen los clientes (pagos y cancelaciones): recarga pedidos cada 10 s
+  useEffect(() => {
+    if (!isAdmin || !['pedidos', 'dashboard'].includes(vista)) return;
+    const intervalo = setInterval(loadOrders, 10000);
+    return () => clearInterval(intervalo);
+  }, [isAdmin, vista]);
+
   // ===================== ADMIN =====================
   const guardar = async (ruta, datos, id, recargar, texto) => {
     try {
@@ -168,6 +175,18 @@ function App() {
 
   const updateCartQty = (id, delta) =>
     setCart((prev) => prev.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0));
+
+  // Solo pedidos sin pagar; ms-pedidos publica order.cancelled y ms-pagos anula el pago pendiente
+  const cancelarPedido = async (pedido) => {
+    if (!confirm(`¿Cancelar el pedido ${pedido.orderNumber}? No se podrá pagar después.`)) return;
+    try {
+      await llamar(`/api/v1/orders/${pedido.id}`, { method: 'DELETE' });
+      showAlert(`Pedido ${pedido.orderNumber} cancelado`);
+      loadOrders();
+    } catch (err) {
+      showAlert('No se pudo cancelar: ' + err.message, 'error');
+    }
+  };
 
   const cartTotal = cart.reduce((suma, i) => suma + i.price * i.qty, 0);
   const unidades = cart.reduce((suma, i) => suma + i.qty, 0);
@@ -220,7 +239,7 @@ function App() {
                    onPagar={handleCheckout} procesando={procesando} onIrTienda={() => setVista('tienda')} />
         )}
         {vista === 'pedidos' && (
-          <Pedidos pedidos={orders} esAdmin={isAdmin} formatCLP={formatCLP} onActualizar={loadOrders} onPagar={setPedidoAPagar} />
+          <Pedidos pedidos={orders} esAdmin={isAdmin} formatCLP={formatCLP} onActualizar={loadOrders} onPagar={setPedidoAPagar} onCancelar={cancelarPedido} />
         )}
         {isAdmin && vista === 'productos' && (
           <AdminProductos productos={products} formatCLP={formatCLP}

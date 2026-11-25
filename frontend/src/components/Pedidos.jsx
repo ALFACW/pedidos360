@@ -6,9 +6,10 @@ const ESTADOS = {
   PENDIENTE_PAGO: { texto: 'Pendiente de pago', estilo: 'border border-tinta' },
   CONFIRMADO: { texto: 'Pagado', estilo: 'bg-ok text-papel' },
   PAGO_RECHAZADO: { texto: 'Pago rechazado', estilo: 'bg-error text-papel' },
+  CANCELADO: { texto: 'Cancelado', estilo: 'bg-papel text-gris line-through' },
 };
 
-export function Pedidos({ pedidos, esAdmin, formatCLP, onActualizar, onPagar }) {
+export function Pedidos({ pedidos, esAdmin, formatCLP, onActualizar, onPagar, onCancelar }) {
   return (
     <div className="mt-10">
       <div className="mb-4 flex items-center justify-between border-b border-tinta pb-2">
@@ -35,9 +36,14 @@ export function Pedidos({ pedidos, esAdmin, formatCLP, onActualizar, onPagar }) 
                     <li key={i} className="flex justify-between gap-2"><span>{it.name} x {it.qty}</span><span>{formatCLP(it.price * it.qty)}</span></li>
                   ))}
                 </ul>
-                <div className="mt-auto flex items-center justify-between border-t border-tinta pt-3">
+                <div className="mt-auto border-t border-tinta pt-3">
                   <span className="font-display text-2xl font-bold">{formatCLP(o.total)}</span>
-                  {o.status === 'PENDIENTE_PAGO' && !esAdmin && <Boton onClick={() => onPagar(o)}>Pagar</Boton>}
+                  {(o.status === 'PENDIENTE_PAGO' || o.status === 'PAGO_RECHAZADO') && (
+                    <div className="mt-3 flex gap-2">
+                      {o.status === 'PENDIENTE_PAGO' && !esAdmin && <Boton className="flex-1" onClick={() => onPagar(o)}>Reanudar pago</Boton>}
+                      <Boton variante="secundario" className="flex-1" onClick={() => onCancelar(o)}>Cancelar pedido</Boton>
+                    </div>
+                  )}
                 </div>
               </li>
             );
