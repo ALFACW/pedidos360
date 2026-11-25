@@ -1,5 +1,6 @@
 import { useMsal } from '@azure/msal-react';
 import { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { loginRequest } from './msalConfig';
 import { PagoWebpay, useRetornoWebpay } from './components/PagoWebpay';
 import { Recomendaciones } from './components/Recomendaciones';
@@ -579,7 +580,7 @@ function App() {
       </header>
 
       {/* CONTENIDO PRINCIPAL */}
-      <main className="ecom-main">
+      <motion.main key={activeTab} className="ecom-main" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         {/* ==================== VISTA 1: TIENDA / CATÁLOGO ==================== */}
         {activeTab === 'tienda' && (
           <div className="store-view">
@@ -615,8 +616,9 @@ function App() {
 
             {/* Grilla de Productos */}
             <div className="products-showcase">
-              {filteredProducts.map((p) => (
-                <div key={p.id} className="store-product-card">
+              {filteredProducts.map((p, i) => (
+                <motion.div key={p.id} className="store-product-card" initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
                   <div className="card-icon">{p.icon || '📦'}</div>
                   <span className="card-category">{p.category}</span>
                   <h3 className="card-title" style={{ cursor: 'pointer' }} onClick={() => verDetalle(p.id)}>{p.name}</h3>
@@ -629,7 +631,7 @@ function App() {
                       + Añadir
                     </button>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -914,7 +916,7 @@ function App() {
             </div>
           </div>
         )}
-      </main>
+      </motion.main>
 
       {/* ==================== MODAL PRODUCTO (CREAR / EDITAR) ==================== */}
       {pedidoAPagar && (

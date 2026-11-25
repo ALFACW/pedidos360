@@ -1,4 +1,10 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+
+// Número que se anima cada vez que cambia su valor
+const Valor = ({ v }) => (
+  <motion.strong key={v} initial={{ scale: 1.6, color: '#4f46e5' }} animate={{ scale: 1, color: '#0f172a' }}>{v}</motion.strong>
+);
 
 const top = (conteo) => Object.entries(conteo).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
@@ -27,23 +33,23 @@ export function Dashboard({ wsUrl }) {
   return (
     <div className="orders-view">
       <h2>📊 Dashboard en tiempo real {conectado ? '🟢' : '🔴'}</h2>
-      <div className="cart-layout">
+      <div className="dashboard-grid">
         <div className="cart-summary-card">
           <h3>Volumen de interacciones</h3>
-          <div className="summary-line total-line"><span>Total</span><strong>{metricas.total}</strong></div>
-          <div className="summary-line"><span>Vistas de producto</span><strong>{metricas.ver}</strong></div>
-          <div className="summary-line"><span>Agregados al carrito</span><strong>{metricas.carrito}</strong></div>
+          <div className="summary-line total-line"><span>Total</span><Valor v={metricas.total} /></div>
+          <div className="summary-line"><span>Vistas de producto</span><Valor v={metricas.ver} /></div>
+          <div className="summary-line"><span>Agregados al carrito</span><Valor v={metricas.carrito} /></div>
         </div>
         <div className="cart-summary-card">
           <h3>Productos más vistos</h3>
           {top(metricas.vistos).map(([nombre, n]) => (
-            <div key={nombre} className="summary-line"><span>{nombre}</span><strong>{n}</strong></div>
+            <div key={nombre} className="summary-line"><span>{nombre}</span><Valor v={n} /></div>
           ))}
         </div>
         <div className="cart-summary-card">
           <h3>Categorías más activas</h3>
           {top(metricas.categorias).map(([categoria, n]) => (
-            <div key={categoria} className="summary-line"><span>{categoria}</span><strong>{n}</strong></div>
+            <div key={categoria} className="summary-line"><span>{categoria}</span><Valor v={n} /></div>
           ))}
         </div>
       </div>
