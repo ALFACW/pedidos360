@@ -55,6 +55,36 @@ Consola AWS, región **N. Virginia (us-east-1)**:
 | **RDS** | `pedidos360-db` PostgreSQL en subred privada | Pedidos, productos, usuarios y pagos en PostgreSQL privado. |
 | **ECR** | 10 repositorios `pedidos360/...` | Cada microservicio se publica como imagen en ECR. |
 
+**Cómo funciona todo junto (recorrido de una petición):**
+
+```
+Navegador ──HTTPS──► API Gateway pedidos360-frontend ──GET──► EC2 pública (Nginx con el build de React)
+    │
+    └──HTTPS + JWT──► API Gateway pedidos360-api-v1
+                        1. Autorizador JWT: valida el token de Entra ID (firma, emisor, audiencia, vencimiento). Sin token: 401.
+                        2. Ruta exacta (método + path) y CORS solo para la página.
+                        3. VPC Link: entra a la red privada sin exponer el backend.
+                      ──► ALB interno ──/api/v1/<servicio>──► puerto del microservicio en la EC2 privada
+                                                               ├─► RDS PostgreSQL (pedidos, productos, usuarios, pagos)
+                                                               ├─► RabbitMQ (pedido → pago → correo)
+                                                               ├─► Kafka (intentos de pago, interacciones) ──► DynamoDB
+                                                               └─► NAT Gateway (salida a ECR, Transbank, Gmail, Entra ID)
+DynamoDB Stream ──► Lambda pedidos360-stream ──► API WebSocket ──► Dashboard del Admin
+```
+
+| Herramienta | Para qué la usamos |
+|---|---|
+| VPC, subredes, IGW, NAT | Red propia: lo público (frontend y bastión) separado del backend privado, que sale a Internet solo por el NAT |
+| EC2 | 2 máquinas con Docker: la pública sirve el frontend y es el bastión SSH; la privada corre microservicios, RabbitMQ y Kafka |
+| Security Groups | Firewall por capa: el backend solo acepta tráfico del ALB y SSH desde el bastión |
+| ALB interno | Reparte cada ruta /api/v1/<servicio> al puerto de su microservicio y revisa su health check |
+| API Gateway (HTTP) | Puerta de entrada: HTTPS, rutas por método, validación JWT y CORS |
+| VPC Link | Conecta API Gateway con el ALB privado |
+| API Gateway (WebSocket) + Lambda | Empuja cada evento nuevo al dashboard sin que el navegador tenga que preguntar |
+| DynamoDB | Guarda las interacciones (NoSQL) y su Stream dispara la Lambda |
+| RDS PostgreSQL | Base de datos relacional privada de los microservicios |
+| ECR | Registro de imágenes Docker; las EC2 las descargan con su perfil IAM (LabInstanceProfile), sin llaves en el código |
+
 ## Escena 3. IDaaS: Entra ID (40 s)
 
 **Mostrar:** Portal de Azure → Entra ID → Usuarios (cliente e invitado Admin) → Aplicaciones empresariales → `pedidos360-backend` → Usuarios y grupos (rol **Admin**) → Registro de aplicación → Authentication (Redirect URI de la tienda).
@@ -66,10 +96,16 @@ Consola AWS, región **N. Virginia (us-east-1)**:
 
 ## Escena 4. Backend en la nube con docker compose (1 min)
 
-**Mostrar** en una terminal:
+**Mostrar** en una terminal (Git Bash, carpeta `Downloads`). Primero la **máquina pública** (frontend y bastión):
 ```bash
 ssh -i pedidos360-publica.pem ec2-user@34.237.227.232
+docker ps          # contenedor interfaz-web (Nginx) en el puerto 80
+docker images      # imagen pedidos360/interfaz-web descargada de ECR
+```
+Desde ahí, la **máquina privada** (backend):
+```bash
 ssh -i ~/.ssh/pedidos360-private.pem ec2-user@10.0.11.221
+docker images | grep pedidos360   # las 9 imágenes de los microservicios, desde ECR
 cd ~/pedidos360
 docker compose -f docker-compose.kafka.yml ps
 docker compose -f docker-compose.yml -f docker-compose.aws.yml ps
@@ -79,7 +115,9 @@ docker exec pedidos360-backend-rabbitmq1-1 rabbitmqctl cluster_status
 ```
 
 **Subtítulos:**
-- Entro al backend privado pasando por el bastión.
+- La máquina pública sirve el frontend con Nginx, desde una imagen de ECR.
+- Desde ella, como bastión, entro al backend privado.
+- Las imágenes de los 9 microservicios también vienen de ECR.
 - Un docker compose levanta Kafka: 3 Zookeeper, 3 brokers y Kafka UI.
 - Otro levanta 9 microservicios y RabbitMQ en clúster de 2 nodos.
 - Bajo un broker y lo levanto en vivo con docker compose.

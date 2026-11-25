@@ -88,188 +88,196 @@ Escena 4. Backend en la nube con docker compose
 
 23
 00:02:22,000 --> 00:02:29,000
-Entro al backend privado pasando por el bastión.
+La máquina pública sirve el frontend con Nginx, desde una imagen de ECR.
 
 24
 00:02:29,000 --> 00:02:36,000
-Un docker compose levanta Kafka: 3 Zookeeper, 3 brokers y Kafka UI.
+Desde ella, como bastión, entro al backend privado.
 
 25
 00:02:36,000 --> 00:02:43,000
-Otro levanta 9 microservicios y RabbitMQ en clúster de 2 nodos.
+Las imágenes de los 9 microservicios también vienen de ECR.
 
 26
 00:02:43,000 --> 00:02:50,000
-Bajo un broker y lo levanto en vivo con docker compose.
+Un docker compose levanta Kafka: 3 Zookeeper, 3 brokers y Kafka UI.
 
 27
 00:02:50,000 --> 00:02:57,000
-RabbitMQ confirma los dos nodos en el clúster.
+Otro levanta 9 microservicios y RabbitMQ en clúster de 2 nodos.
 
 28
-00:02:57,000 --> 00:03:01,000
-Escena 5. RabbitMQ
+00:02:57,000 --> 00:03:04,000
+Bajo un broker y lo levanto en vivo con docker compose.
 
 29
-00:03:01,000 --> 00:03:08,000
-Consola de RabbitMQ: los dos nodos del clúster.
+00:03:04,000 --> 00:03:11,000
+RabbitMQ confirma los dos nodos en el clúster.
 
 30
-00:03:08,000 --> 00:03:15,000
-Exchange topic pedidos360.events y exchange direct pedidos360.dlx.
+00:03:11,000 --> 00:03:15,000
+Escena 5. RabbitMQ
 
 31
 00:03:15,000 --> 00:03:22,000
-Tres colas de trabajo, cada una con su cola de mensajes muertos (DLQ).
+Consola de RabbitMQ: los dos nodos del clúster.
 
 32
 00:03:22,000 --> 00:03:29,000
-Flujo: pedido creado, pago aprobado o rechazado, y notificación por correo.
+Exchange topic pedidos360.events y exchange direct pedidos360.dlx.
 
 33
 00:03:29,000 --> 00:03:36,000
-Cada microservicio aparece con su nombre en Connections.
+Tres colas de trabajo, cada una con su cola de mensajes muertos (DLQ).
 
 34
-00:03:36,000 --> 00:03:40,000
-Escena 6. Kafka UI
+00:03:36,000 --> 00:03:43,000
+Flujo: pedido creado, pago aprobado o rechazado, y notificación por correo.
 
 35
-00:03:40,000 --> 00:03:47,000
-Kafka UI administra el clúster: 3 brokers activos.
+00:03:43,000 --> 00:03:50,000
+Cada microservicio aparece con su nombre en Connections.
 
 36
-00:03:47,000 --> 00:03:54,000
-Dos tópicos con 3 particiones y 3 réplicas cada uno, más sus tópicos de error.
+00:03:50,000 --> 00:03:54,000
+Escena 6. Kafka UI
 
 37
 00:03:54,000 --> 00:04:01,000
-3 particiones permiten procesar en paralelo; 3 réplicas toleran la caída de un broker.
+Kafka UI administra el clúster: 3 brokers activos.
 
 38
 00:04:01,000 --> 00:04:08,000
-Retención: intentos de pago 1 día, interacciones 7 días.
+Dos tópicos con 3 particiones y 3 réplicas cada uno, más sus tópicos de error.
 
 39
 00:04:08,000 --> 00:04:15,000
-Cada mensaje tiene clave, partición y offset.
+3 particiones permiten procesar en paralelo; 3 réplicas toleran la caída de un broker.
 
 40
 00:04:15,000 --> 00:04:22,000
-Consumer groups deteccion-fraude y recomendaciones, con lag 0.
+Retención: intentos de pago 1 día, interacciones 7 días.
 
 41
-00:04:22,000 --> 00:04:26,000
-Escena 7. Compra completa del cliente
+00:04:22,000 --> 00:04:29,000
+Cada mensaje tiene clave, partición y offset.
 
 42
-00:04:26,000 --> 00:04:33,000
-Ver un producto publica un evento VER en Kafka.
+00:04:29,000 --> 00:04:36,000
+Consumer groups deteccion-fraude y recomendaciones, con lag 0.
 
 43
-00:04:33,000 --> 00:04:40,000
-Agregarlo al carrito publica CARRITO; las recomendaciones se recalculan.
+00:04:36,000 --> 00:04:40,000
+Escena 7. Compra completa del cliente
 
 44
 00:04:40,000 --> 00:04:47,000
-El pago se hace con WebPay en ambiente de integración de Transbank.
+Ver un producto publica un evento VER en Kafka.
 
 45
 00:04:47,000 --> 00:04:54,000
-Al aprobarse, RabbitMQ avisa a pedidos (descuenta stock) y a notificaciones.
+Agregarlo al carrito publica CARRITO; las recomendaciones se recalculan.
 
 46
 00:04:54,000 --> 00:05:01,000
-El cliente recibe el correo de confirmación.
+El pago se hace con WebPay en ambiente de integración de Transbank.
 
 47
 00:05:01,000 --> 00:05:08,000
-La compra también llega a Kafka como evento COMPRA.
+Al aprobarse, RabbitMQ avisa a pedidos (descuenta stock) y a notificaciones.
 
 48
-00:05:08,000 --> 00:05:12,000
-Escena 8. Dashboard del Admin en tiempo real
+00:05:08,000 --> 00:05:15,000
+El cliente recibe el correo de confirmación.
 
 49
-00:05:12,000 --> 00:05:19,000
-Dashboard del Admin conectado por WebSocket.
+00:05:15,000 --> 00:05:22,000
+La compra también llega a Kafka como evento COMPRA.
 
 50
-00:05:19,000 --> 00:05:26,000
-Ventas confirmadas, pedidos pagados y ticket promedio.
+00:05:22,000 --> 00:05:26,000
+Escena 8. Dashboard del Admin en tiempo real
 
 51
 00:05:26,000 --> 00:05:33,000
-Embudo de conversión: vistas, carrito y compras.
+Dashboard del Admin conectado por WebSocket.
 
 52
 00:05:33,000 --> 00:05:40,000
-Cada clic del cliente aparece al instante en Actividad en vivo.
+Ventas confirmadas, pedidos pagados y ticket promedio.
 
 53
 00:05:40,000 --> 00:05:47,000
-Alertas con detalle: pedidos pendientes, cancelados, stock bajo y fraude.
+Embudo de conversión: vistas, carrito y compras.
 
 54
 00:05:47,000 --> 00:05:54,000
-Un pedido sin pagar se puede reanudar o cancelar; el Admin lo ve actualizado.
+Cada clic del cliente aparece al instante en Actividad en vivo.
 
 55
-00:05:54,000 --> 00:05:58,000
-Escena 9. Antifraude: misma tarjeta más de 3 veces en 10 segundos
+00:05:54,000 --> 00:06:01,000
+Alertas con detalle: pedidos pendientes, cancelados, stock bajo y fraude.
 
 56
-00:05:58,000 --> 00:06:05,000
-Regla antifraude: la misma tarjeta más de 3 veces en 10 segundos se bloquea.
+00:06:01,000 --> 00:06:08,000
+Un pedido sin pagar se puede reanudar o cancelar; el Admin lo ve actualizado.
 
 57
-00:06:05,000 --> 00:06:12,000
-Cada intento de pago es un evento en Kafka con la tarjeta como clave.
+00:06:08,000 --> 00:06:12,000
+Escena 9. Antifraude: misma tarjeta más de 3 veces en 10 segundos
 
 58
 00:06:12,000 --> 00:06:19,000
-Misma tarjeta, misma partición: los intentos llegan en orden.
+Regla antifraude: la misma tarjeta más de 3 veces en 10 segundos se bloquea.
 
 59
 00:06:19,000 --> 00:06:26,000
-Al cuarto intento la tarjeta se bloquea 30 minutos y se registra la alerta.
+Cada intento de pago es un evento en Kafka con la tarjeta como clave.
 
 60
 00:06:26,000 --> 00:06:33,000
-El siguiente pago con esa tarjeta se rechaza antes de llegar a WebPay.
+Misma tarjeta, misma partición: los intentos llegan en orden.
 
 61
-00:06:33,000 --> 00:06:37,000
-Escena 10. Errores, administradores y cierre
+00:06:33,000 --> 00:06:40,000
+Al cuarto intento la tarjeta se bloquea 30 minutos y se registra la alerta.
 
 62
-00:06:37,000 --> 00:06:44,000
-Un mensaje inválido no detiene al consumidor: va al tópico .DLT con su motivo.
+00:06:40,000 --> 00:06:47,000
+El siguiente pago con esa tarjeta se rechaza antes de llegar a WebPay.
 
 63
-00:06:44,000 --> 00:06:51,000
-Los errores transitorios se reintentan 3 veces antes de la DLT.
+00:06:47,000 --> 00:06:51,000
+Escena 10. Errores, administradores y cierre
 
 64
 00:06:51,000 --> 00:06:58,000
-Microservicio administrador de Kafka: crea, modifica y elimina tópicos y ve el lag.
+Un mensaje inválido no detiene al consumidor: va al tópico .DLT con su motivo.
 
 65
 00:06:58,000 --> 00:07:05,000
-Microservicio administrador de RabbitMQ: crea y elimina colas, exchanges y bindings.
+Los errores transitorios se reintentan 3 veces antes de la DLT.
 
 66
 00:07:05,000 --> 00:07:12,000
-Sin token, API Gateway responde 401.
+Microservicio administrador de Kafka: crea, modifica y elimina tópicos y ve el lag.
 
 67
 00:07:12,000 --> 00:07:19,000
-RabbitMQ se mantiene para tareas; Kafka se suma para eventos y analítica.
+Microservicio administrador de RabbitMQ: crea y elimina colas, exchanges y bindings.
 
 68
 00:07:19,000 --> 00:07:26,000
-*Intento de pago:* `tarjeta` (solo últimos 4 dígitos, es la clave), `cliente`, `pedidoId`, `monto` y `fecha` (hora del evento, para que la ventana de 10 s no dependa del retraso del consumidor).
+Sin token, API Gateway responde 401.
 
 69
 00:07:26,000 --> 00:07:33,000
+RabbitMQ se mantiene para tareas; Kafka se suma para eventos y analítica.
+
+70
+00:07:33,000 --> 00:07:40,000
+*Intento de pago:* `tarjeta` (solo últimos 4 dígitos, es la clave), `cliente`, `pedidoId`, `monto` y `fecha` (hora del evento, para que la ventana de 10 s no dependa del retraso del consumidor).
+
+71
+00:07:40,000 --> 00:07:47,000
 *Interacción:* `usuario` (clave), `productoId`, `nombreProducto`, `categoria` (para recomendar por categoría), `accion` (VER, CARRITO o COMPRA, con pesos 1, 2 y 3) y `fecha`.
