@@ -76,7 +76,7 @@ function App() {
   const handleLogin = async () => {
     try {
       setAlert(null);
-      await instance.loginPopup(loginRequest);
+      await instance.loginPopup({ ...loginRequest, prompt: 'select_account' });
       showAlert('¡Sesión iniciada con éxito en Microsoft Entra ID!');
     } catch (err) {
       showAlert('Error al iniciar sesión: ' + (err.message || err), 'error');
