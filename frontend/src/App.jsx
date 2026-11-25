@@ -213,7 +213,7 @@ function App() {
   const titulos = {
     tienda: ['Tienda', categoria === 'Todos' ? 'Todo' : categoria],
     carrito: ['Carrito', unidades],
-    pedidos: isAdmin ? ['Pedidos', 'Clientes'] : ['Mis', 'Pedidos'],
+    pedidos: isAdmin ? ['Pedidos', 'Todos'] : ['Mis', 'Pedidos'],
     productos: ['Admin', 'Productos'],
     usuarios: ['Admin', 'Usuarios'],
     dashboard: ['Dashboard', 'En vivo'],
@@ -239,7 +239,7 @@ function App() {
                    onPagar={handleCheckout} procesando={procesando} onIrTienda={() => setVista('tienda')} />
         )}
         {vista === 'pedidos' && (
-          <Pedidos pedidos={orders} esAdmin={isAdmin} formatCLP={formatCLP} onActualizar={loadOrders} onPagar={setPedidoAPagar} onCancelar={cancelarPedido} />
+          <Pedidos pedidos={orders} esAdmin={isAdmin} miUsuario={currentAccount?.idTokenClaims?.sub} formatCLP={formatCLP} onActualizar={loadOrders} onPagar={setPedidoAPagar} onCancelar={cancelarPedido} />
         )}
         {isAdmin && vista === 'productos' && (
           <AdminProductos productos={products} formatCLP={formatCLP}

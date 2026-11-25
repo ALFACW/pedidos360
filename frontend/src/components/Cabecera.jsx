@@ -33,7 +33,7 @@ export function Cabecera({ vista, setVista, esAdmin, unidadesCarrito, cuenta, on
           {esAdmin && <Pestana activa={vista === 'productos'} onClick={ir('productos')}>Productos</Pestana>}
           <Pestana activa={vista === 'carrito'} onClick={ir('carrito')} contador={unidadesCarrito}>Carrito</Pestana>
           {esAdmin && <Pestana activa={vista === 'usuarios'} onClick={ir('usuarios')}>Usuarios</Pestana>}
-          <Pestana activa={vista === 'pedidos'} onClick={ir('pedidos')}>{esAdmin ? 'Pedidos de clientes' : 'Mis pedidos'}</Pestana>
+          <Pestana activa={vista === 'pedidos'} onClick={ir('pedidos')}>{esAdmin ? 'Pedidos' : 'Mis pedidos'}</Pestana>
           {esAdmin && (
             <Pestana activa={vista === 'dashboard'} onClick={ir('dashboard')}>
               <span className="size-2 rounded-full bg-acento" aria-hidden="true" /> Dashboard

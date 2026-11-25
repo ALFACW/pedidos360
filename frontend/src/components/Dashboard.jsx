@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, Package, ShieldAlert, XCircle } from 'lucide-react';
+import { ImagenProducto } from './ui';
 
 const VERBOS = { VER: 'vio', CARRITO: 'agregó al carrito', COMPRA: 'compró' };
 const VACIO = { total: 0, usuarios: 0, ver: 0, carrito: 0, compras: 0, vistos: {}, comprados: {}, categorias: {}, ultimas: [] };
@@ -40,6 +41,31 @@ function Ranking({ titulo, filas, vacio }) {
         </ol>
       )}
     </section>
+  );
+}
+
+/** Bloque de alerta con su contador y el detalle de cada caso. */
+function BloqueAlerta({ Icono, titulo, ayuda, activa, children }) {
+  return (
+    <div className={`border p-5 ${activa ? 'border-tinta' : 'border-tinta/20'}`}>
+      <div className="flex items-start gap-3">
+        <Icono className={activa ? 'text-error' : 'text-gris'} aria-hidden="true" />
+        <span><strong className="font-display text-xl uppercase">{titulo}</strong><span className="block text-sm text-gris">{ayuda}</span></span>
+      </div>
+      {activa && <ul className="mt-3 max-h-72 divide-y divide-tinta/20 overflow-y-auto border-t border-tinta/20">{children}</ul>}
+    </div>
+  );
+}
+
+/** Quién, qué, cuánto y cuándo de un pedido. */
+function FilaPedido({ pedido, formatCLP }) {
+  return (
+    <li className="py-2 text-sm">
+      <div className="flex justify-between gap-2"><strong className="font-display text-base uppercase">{pedido.orderNumber}</strong><strong>{formatCLP(pedido.total)}</strong></div>
+      <div>{pedido.customerEmail || pedido.user}</div>
+      <div className="text-gris">{(pedido.items || []).map((it) => `${it.name} x ${it.qty}`).join(', ')}</div>
+      <div className="text-gris">Creado el {pedido.createdAt}</div>
+    </li>
   );
 }
 
@@ -135,55 +161,56 @@ export function Dashboard({ wsUrl, apiBaseUrl, getAccessToken, pedidos, producto
         <Ranking titulo="Interés sin compra" filas={sinCompra} vacio="Todo lo visto se ha comprado al menos una vez." />
       </div>
 
-      <div className="grid gap-10 lg:grid-cols-2">
-        <section>
-          <Titulo>Alertas</Titulo>
-          <ul className="mt-3 divide-y divide-tinta/20">
-            <li className="flex items-start gap-3 py-3">
-              <ShieldAlert className={fraude.tarjetasBloqueadas ? 'text-error' : 'text-gris'} aria-hidden="true" />
-              <span><strong>{fraude.tarjetasBloqueadas} tarjetas bloqueadas por fraude</strong>
-                <span className="block text-sm text-gris">Misma tarjeta más de 3 veces en 10 segundos (Kafka, ms-pagos)</span></span>
-            </li>
-            {fraude.alertas.slice(0, 3).map((a) => (
-              <li key={a.id} className="py-2 pl-9 text-sm">
-                Tarjeta {a.tarjeta} de {a.cliente}: {a.intentos} intentos, {new Date(a.fecha).toLocaleString('es-CL')}
+      <section>
+        <Titulo>Alertas</Titulo>
+        <div className="mt-4 grid gap-6 md:grid-cols-2">
+          <BloqueAlerta Icono={AlertTriangle} titulo={`${pendientes.length} pedidos pendientes de pago`}
+                        ayuda="Crearon el pedido y no terminaron en WebPay" activa={pendientes.length > 0}>
+            {pendientes.map((p) => <FilaPedido key={p.id} pedido={p} formatCLP={formatCLP} />)}
+          </BloqueAlerta>
+          <BloqueAlerta Icono={XCircle} titulo={`${cancelados.length} pedidos cancelados`}
+                        ayuda="Cancelados antes de pagar" activa={cancelados.length > 0}>
+            {cancelados.map((p) => <FilaPedido key={p.id} pedido={p} formatCLP={formatCLP} />)}
+          </BloqueAlerta>
+          <BloqueAlerta Icono={Package} titulo={`${stockBajo.length} productos con stock bajo`}
+                        ayuda="5 unidades o menos: hay que reponer" activa={stockBajo.length > 0}>
+            {stockBajo.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 py-2">
+                <span className="size-12 shrink-0 overflow-hidden bg-placa"><ImagenProducto producto={p} tamanoEmoji="text-2xl" /></span>
+                <span className="flex-1"><span className="block font-display uppercase leading-tight">{p.name}</span><span className="text-sm text-gris">{p.category}</span></span>
+                <strong className="font-display text-2xl text-error">{p.stock} u.</strong>
               </li>
             ))}
-            <li className="flex items-start gap-3 py-3">
-              <Package className={stockBajo.length ? 'text-error' : 'text-gris'} aria-hidden="true" />
-              <span><strong>{stockBajo.length} productos con stock bajo</strong>
-                <span className="block text-sm text-gris">{stockBajo.map((p) => `${p.name} (${p.stock})`).join(', ') || 'Todo el catálogo tiene más de 5 unidades'}</span></span>
-            </li>
-            <li className="flex items-start gap-3 py-3">
-              <AlertTriangle className={pendientes.length ? 'text-error' : 'text-gris'} aria-hidden="true" />
-              <span><strong>{pendientes.length} pedidos pendientes de pago</strong>
-                <span className="block text-sm text-gris">Clientes que crearon el pedido pero no terminaron en WebPay</span></span>
-            </li>
-            <li className="flex items-start gap-3 py-3">
-              <XCircle className="text-gris" aria-hidden="true" />
-              <span><strong>{cancelados.length} pedidos cancelados</strong>
-                <span className="block text-sm text-gris">Cancelados por el cliente antes de pagar</span></span>
-            </li>
-          </ul>
-        </section>
+          </BloqueAlerta>
+          <BloqueAlerta Icono={ShieldAlert} titulo={`${fraude.tarjetasBloqueadas} tarjetas bloqueadas por fraude`}
+                        ayuda="Misma tarjeta más de 3 veces en 10 segundos (Kafka, ms-pagos)" activa={fraude.tarjetasBloqueadas > 0}>
+            {fraude.alertas.map((a) => (
+              <li key={a.id} className="grid grid-cols-[1fr_auto] gap-x-3 py-2 text-sm">
+                <span><strong>Tarjeta {a.tarjeta}</strong> de {a.cliente}</span>
+                <span className="font-semibold text-error">{a.intentos} intentos</span>
+                <span className="col-span-2 text-gris">{new Date(a.fecha).toLocaleString('es-CL')}</span>
+              </li>
+            ))}
+          </BloqueAlerta>
+        </div>
+      </section>
 
-        <section>
-          <Titulo>Actividad en vivo</Titulo>
-          {m.ultimas.length === 0 && <p className="py-4 text-gris">Cuando un cliente vea un producto, lo agregue al carrito o compre, aparecerá aquí.</p>}
-          <ul className="divide-y divide-tinta/20">
-            <AnimatePresence initial={false}>
-              {m.ultimas.map((i) => (
-                <motion.li key={`${i.usuario}-${i.fecha}-${i.productoId}`} layout initial={{ opacity: 0, x: -24, backgroundColor: '#ffe3ef' }}
-                           animate={{ opacity: 1, x: 0, backgroundColor: '#ffffff' }} transition={{ duration: 0.6 }}
-                           className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-                  <span><strong>{i.usuario.split('@')[0]}</strong> {VERBOS[i.accion] || i.accion} <span className="font-display text-lg uppercase">{i.nombreProducto}</span></span>
-                  <span className="text-sm text-gris">{new Date(i.fecha).toLocaleTimeString('es-CL')}</span>
-                </motion.li>
-              ))}
-            </AnimatePresence>
-          </ul>
-        </section>
-      </div>
+      <section>
+        <Titulo>Actividad en vivo</Titulo>
+        {m.ultimas.length === 0 && <p className="py-4 text-gris">Cuando un cliente vea un producto, lo agregue al carrito o compre, aparecerá aquí.</p>}
+        <ul className="divide-y divide-tinta/20">
+          <AnimatePresence initial={false}>
+            {m.ultimas.map((i) => (
+              <motion.li key={`${i.usuario}-${i.fecha}-${i.productoId}`} layout initial={{ opacity: 0, x: -24, backgroundColor: '#ffe3ef' }}
+                         animate={{ opacity: 1, x: 0, backgroundColor: '#ffffff' }} transition={{ duration: 0.6 }}
+                         className="flex flex-wrap items-baseline justify-between gap-2 py-3">
+                <span><strong>{i.usuario.split('@')[0]}</strong> {VERBOS[i.accion] || i.accion} <span className="font-display text-lg uppercase">{i.nombreProducto}</span></span>
+                <span className="text-sm text-gris">{new Date(i.fecha).toLocaleTimeString('es-CL')}</span>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      </section>
     </div>
   );
 }

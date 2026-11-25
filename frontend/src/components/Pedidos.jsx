@@ -9,7 +9,7 @@ const ESTADOS = {
   CANCELADO: { texto: 'Cancelado', estilo: 'bg-papel text-gris line-through' },
 };
 
-export function Pedidos({ pedidos, esAdmin, formatCLP, onActualizar, onPagar, onCancelar }) {
+export function Pedidos({ pedidos, esAdmin, miUsuario, formatCLP, onActualizar, onPagar, onCancelar }) {
   return (
     <div className="mt-10">
       <div className="mb-4 flex items-center justify-between border-b border-tinta pb-2">
@@ -40,7 +40,7 @@ export function Pedidos({ pedidos, esAdmin, formatCLP, onActualizar, onPagar, on
                   <span className="font-display text-2xl font-bold">{formatCLP(o.total)}</span>
                   {(o.status === 'PENDIENTE_PAGO' || o.status === 'PAGO_RECHAZADO') && (
                     <div className="mt-3 flex gap-2">
-                      {o.status === 'PENDIENTE_PAGO' && !esAdmin && <Boton className="flex-1" onClick={() => onPagar(o)}>Reanudar pago</Boton>}
+                      {o.status === 'PENDIENTE_PAGO' && o.ownerId === miUsuario && <Boton className="flex-1" onClick={() => onPagar(o)}>Reanudar pago</Boton>}
                       <Boton variante="secundario" className="flex-1" onClick={() => onCancelar(o)}>Cancelar pedido</Boton>
                     </div>
                   )}
