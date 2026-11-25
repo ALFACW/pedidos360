@@ -49,6 +49,7 @@ POST   /api/v1/pagos/iniciar             JWT
 POST   /api/v1/pagos/confirmar           JWT
 GET    /api/v1/recomendaciones/health    NONE
 GET    /api/v1/recomendaciones           JWT
+GET    /api/v1/recomendaciones/metricas  JWT
 GET    /api/v1/kafka/health              NONE
 GET    /api/v1/kafka/topicos             JWT
 POST   /api/v1/kafka/topicos             JWT

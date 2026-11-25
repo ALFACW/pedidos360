@@ -24,6 +24,11 @@ public class RecomendacionController {
         return Map.of("status", "UP");
     }
 
+    @GetMapping("/metricas")
+    public Map<String, Object> metricas() {
+        return recomendacionService.metricas();
+    }
+
     @GetMapping
     public List<RecomendacionDTO> recomendaciones(@AuthenticationPrincipal Jwt jwt) {
         return recomendacionService.recomendar(jwt.getClaimAsString("preferred_username"));

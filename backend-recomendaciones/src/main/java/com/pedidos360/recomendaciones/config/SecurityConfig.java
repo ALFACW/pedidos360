@@ -10,6 +10,8 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
 /** Valida el JWT de Entra ID: firma, issuer, vigencia y audience. */
@@ -33,14 +35,25 @@ public class SecurityConfig {
         return decoder;
     }
 
+    private static JwtAuthenticationConverter rolesDeEntraId() {
+        JwtGrantedAuthoritiesConverter roles = new JwtGrantedAuthoritiesConverter();
+        roles.setAuthoritiesClaimName("roles");
+        roles.setAuthorityPrefix("ROLE_");
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(roles);
+        return converter;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/recomendaciones/health").permitAll()
+                        .requestMatchers("/api/v1/recomendaciones/metricas").hasRole("Admin")
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder())))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder())
+                        .jwtAuthenticationConverter(rolesDeEntraId())))
                 .build();
     }
 }

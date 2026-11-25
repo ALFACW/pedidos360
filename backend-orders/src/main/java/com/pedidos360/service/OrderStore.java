@@ -1,6 +1,7 @@
 package com.pedidos360.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pedidos360.event.CompraPublisher;
 import com.pedidos360.model.OrderEntity;
 import com.pedidos360.model.OrderOutboxEntity;
 import com.pedidos360.repository.OrderOutboxRepository;
@@ -28,12 +29,15 @@ public class OrderStore {
     private final OrderOutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final CompraPublisher compraPublisher;
 
     public OrderStore(OrderRepository orderRepository,
             OrderOutboxRepository outboxRepository,
             ObjectMapper objectMapper,
-            JdbcTemplate jdbcTemplate) {
+            JdbcTemplate jdbcTemplate,
+            CompraPublisher compraPublisher) {
         this.jdbcTemplate = jdbcTemplate;
+        this.compraPublisher = compraPublisher;
         this.orderRepository = orderRepository;
         this.outboxRepository = outboxRepository;
         this.objectMapper = objectMapper;
@@ -114,8 +118,19 @@ public class OrderStore {
         orderRepository.save(order);
         if (firstApproval) {
             decrementStock(order.getItems());
+            publicarCompras(order);
         }
         return true;
+    }
+
+    private void publicarCompras(OrderEntity order) {
+        for (Map<String, Object> item : order.getItems()) {
+            if (item.get("id") instanceof Number id) {
+                String categoria = jdbcTemplate.query("SELECT category FROM products WHERE id = ?",
+                        rs -> rs.next() ? rs.getString(1) : "Sin categoría", id.intValue());
+                compraPublisher.publicar(order.getCustomerEmail(), id.longValue(), String.valueOf(item.get("name")), categoria);
+            }
+        }
     }
 
     // Descuenta el stock una sola vez, en la misma transaccion que confirma el pedido
