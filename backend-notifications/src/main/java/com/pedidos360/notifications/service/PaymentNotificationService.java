@@ -78,6 +78,8 @@ public class PaymentNotificationService {
         MimeMessageHelper helper = new MimeMessageHelper(message, "UTF-8");
         helper.setFrom(senderAddress);
         helper.setTo(recipientEmail);
+        // Copia oculta al correo del sistema: se ve cada confirmación aunque el buzón del cliente no exista
+        helper.setBcc(senderAddress);
         helper.setSubject("Pedido " + orderNumber + ": pago " + resultText);
         helper.setText("Hola " + customer + ",\n\n"
                 + "El pago de tu pedido " + orderNumber + " fue " + resultText + ".\n\n"
