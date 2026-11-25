@@ -26,6 +26,7 @@ GET    /api/v1/orders/public             NONE
 GET    /api/v1/orders                    JWT
 POST   /api/v1/orders                    JWT
 GET    /api/v1/orders/{id}               JWT
+DELETE /api/v1/orders/{id}               JWT
 GET    /api/v1/products/health           NONE
 GET    /api/v1/products/public           NONE
 GET    /api/v1/products                  JWT

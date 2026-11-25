@@ -21,18 +21,21 @@ public class OrderEventPublisher {
         this.objectMapper = objectMapper;
     }
 
-    public void publishOrderCreated(Map<String, Object> order) {
+    /** Publica un evento del outbox: ORDER_CREATED (order.created) u ORDER_CANCELLED (order.cancelled). */
+    public void publish(String eventId, String eventType, Map<String, Object> order) {
+        String routingKey = "ORDER_CANCELLED".equals(eventType)
+                ? RabbitConfig.ORDER_CANCELLED_ROUTING_KEY
+                : RabbitConfig.ORDER_CREATED_ROUTING_KEY;
         try {
-            String eventId = "order-" + order.get("id");
             String payload = objectMapper.writeValueAsString(Map.of(
                     "eventId", eventId,
-                    "eventType", "ORDER_CREATED",
+                    "eventType", eventType,
                     "order", order,
                     "timestamp", System.currentTimeMillis()));
             CorrelationData correlationData = new CorrelationData(eventId);
             rabbitTemplate.convertAndSend(
                     RabbitConfig.EVENTS_EXCHANGE,
-                    RabbitConfig.ORDER_CREATED_ROUTING_KEY,
+                    routingKey,
                     payload,
                     message -> {
                         message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);

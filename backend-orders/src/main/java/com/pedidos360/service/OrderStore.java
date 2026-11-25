@@ -6,14 +6,15 @@ import com.pedidos360.model.OrderEntity;
 import com.pedidos360.model.OrderOutboxEntity;
 import com.pedidos360.repository.OrderOutboxRepository;
 import com.pedidos360.repository.OrderRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -71,18 +72,40 @@ public class OrderStore {
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> findPendingOrderEvents() {
-        return outboxRepository.findTop100ByPublishedAtIsNullOrderByCreatedAtAsc().stream()
-                .map(OrderOutboxEntity::getPayload)
-                .collect(Collectors.toCollection(ArrayList::new));
+    public List<OrderOutboxEntity> findPendingOrderEvents() {
+        return outboxRepository.findTop100ByPublishedAtIsNullOrderByCreatedAtAsc();
     }
 
     @Transactional
-    public void markOrderEventPublished(long orderId) {
-        outboxRepository.findByOrderIdAndPublishedAtIsNull(Math.toIntExact(orderId)).ifPresent(event -> {
+    public void markOrderEventPublished(String eventId) {
+        outboxRepository.findById(eventId).ifPresent(event -> {
             event.setPublishedAt(LocalDateTime.now());
             outboxRepository.save(event);
         });
+    }
+
+    /**
+     * Cancela un pedido no pagado (lo conserva con estado CANCELADO para el Admin) y deja en el outbox
+     * el evento ORDER_CANCELLED para que ms-pagos anule su pago pendiente.
+     */
+    @Transactional
+    public void cancel(long orderId, String ownerId, boolean admin) {
+        OrderEntity order = orderRepository.findById(Math.toIntExact(orderId))
+                .filter(o -> admin || ownerId.equals(o.getOwnerId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido no encontrado"));
+        if ("CONFIRMADO".equals(order.getStatus()) || "CANCELADO".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Solo se pueden cancelar pedidos sin pagar");
+        }
+        order.setStatus("CANCELADO");
+        orderRepository.save(order);
+
+        OrderOutboxEntity outboxEvent = new OrderOutboxEntity();
+        outboxEvent.setEventId("order-" + orderId + "-cancelled");
+        outboxEvent.setOrderId(order.getId());
+        outboxEvent.setEventType("ORDER_CANCELLED");
+        outboxEvent.setPayload(Map.of("id", order.getId(), "orderNumber", order.getOrderNumber()));
+        outboxEvent.setCreatedAt(LocalDateTime.now());
+        outboxRepository.save(outboxEvent);
     }
 
     @Transactional(readOnly = true)

@@ -69,6 +69,13 @@ public class OrderController {
         return ResponseEntity.ok(list);
     }
 
+    // CANCELAR: solo pedidos sin pagar, del propio cliente (o cualquiera si es Admin)
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> cancel(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        orderStore.cancel(id, jwt.getSubject(), SecurityConfig.isAdmin(jwt));
+        return ResponseEntity.noContent().build();
+    }
+
     // CREATE ORDER (Checkout de Carrito)
     @PostMapping
     public ResponseEntity<?> createOrder(@RequestBody Map<String, Object> body, @AuthenticationPrincipal Jwt jwt) {

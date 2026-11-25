@@ -1,5 +1,6 @@
 package com.pedidos360.event;
 
+import com.pedidos360.model.OrderOutboxEntity;
 import com.pedidos360.service.OrderStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -7,7 +8,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Map;
 
 @Component
 public class OrderCreatedOutboxRelay {
@@ -24,15 +24,14 @@ public class OrderCreatedOutboxRelay {
 
     @Scheduled(fixedDelayString = "${app.outbox.poll-interval-ms:2000}")
     public void publishPendingEvents() {
-        List<Map<String, Object>> pendingEvents = orderStore.findPendingOrderEvents();
-        for (Map<String, Object> order : pendingEvents) {
-            long orderId = ((Number) order.get("id")).longValue();
+        List<OrderOutboxEntity> pendingEvents = orderStore.findPendingOrderEvents();
+        for (OrderOutboxEntity event : pendingEvents) {
             try {
-                orderEventPublisher.publishOrderCreated(order);
-                orderStore.markOrderEventPublished(orderId);
+                orderEventPublisher.publish(event.getEventId(), event.getEventType(), event.getPayload());
+                orderStore.markOrderEventPublished(event.getEventId());
             } catch (RuntimeException exception) {
-                logger.warn("Order-created event for order {} remains pending: {}",
-                        orderId, exception.getMessage());
+                logger.warn("Event {} ({}) remains pending: {}",
+                        event.getEventId(), event.getEventType(), exception.getMessage());
             }
         }
     }

@@ -1,11 +1,13 @@
 package com.pedidos360.payments.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pedidos360.payments.model.Pago;
 import com.pedidos360.payments.repository.PagoRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,7 +28,7 @@ class PaymentProcessingServiceTest {
     @Test
     void registraPagoPendiente() throws Exception {
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-        service.processOrderCreated("""
+        service.processOrderEvent("""
                 {"eventId":"order-42","eventType":"ORDER_CREATED","order":{"id":42,"orderNumber":"PED-42","user":"Test User","customerEmail":"test@example.com","total":19.99}}
                 """);
 
@@ -37,9 +39,24 @@ class PaymentProcessingServiceTest {
     }
 
     @Test
+    void cancelaElPagoPendienteCuandoSeCancelaElPedido() throws Exception {
+        Pago pendiente = new Pago();
+        pendiente.setPedidoId(42L);
+        pendiente.setEstado("PENDIENTE");
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+        when(pagoRepository.findById(42L)).thenReturn(Optional.of(pendiente));
+
+        service.processOrderEvent("""
+                {"eventId":"order-42-cancelled","eventType":"ORDER_CANCELLED","order":{"id":42,"orderNumber":"PED-42"}}
+                """);
+
+        verify(pagoRepository).save(argThat(pago -> "CANCELADO".equals(pago.getEstado())));
+    }
+
+    @Test
     void ignoraEventoYaProcesado() throws Exception {
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0);
-        service.processOrderCreated("""
+        service.processOrderEvent("""
                 {"eventId":"order-42","eventType":"ORDER_CREATED","order":{"id":42,"total":19.99}}
                 """);
 
@@ -49,7 +66,7 @@ class PaymentProcessingServiceTest {
     @Test
     void rechazaEventoInesperado() {
         assertThrows(IllegalArgumentException.class,
-                () -> service.processOrderCreated("{\"eventType\":\"UNKNOWN\"}"));
+                () -> service.processOrderEvent("{\"eventType\":\"UNKNOWN\"}"));
         verifyNoInteractions(pagoRepository, jdbcTemplate);
     }
 }

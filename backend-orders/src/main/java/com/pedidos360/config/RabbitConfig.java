@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
  * Mensajería de ms-pedidos.
  *
  * <pre>
- * Publica:  pedidos360.events (topic) --order.created--> (ms-pagos)
+ * Publica:  pedidos360.events (topic) --order.created | order.cancelled--> (ms-pagos)
  * Consume:  pedidos360.events (topic) --payment.#--> pedidos360.orders.payment-results.queue
  * DLQ:      pedidos360.dlx (direct) --orders.payment-results.dead--> pedidos360.orders.payment-results.dead
  * </pre>
@@ -27,6 +27,7 @@ public class RabbitConfig {
     public static final String EVENTS_EXCHANGE = "pedidos360.events";
     public static final String DEAD_LETTER_EXCHANGE = "pedidos360.dlx";
     public static final String ORDER_CREATED_ROUTING_KEY = "order.created";
+    public static final String ORDER_CANCELLED_ROUTING_KEY = "order.cancelled";
     public static final String PAYMENT_RESULTS_QUEUE = "pedidos360.orders.payment-results.queue";
     public static final String PAYMENT_RESULTS_ROUTING_KEY = "payment.#";
     public static final String PAYMENT_RESULTS_DEAD_QUEUE = "pedidos360.orders.payment-results.dead";

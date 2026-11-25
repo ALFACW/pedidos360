@@ -8,7 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Dominio pagos: registra el pago PENDIENTE de un pedido creado (idempotente vía payment_inbox). */
+/** Dominio pagos: registra el pago PENDIENTE de un pedido creado y lo anula si el pedido se cancela (idempotente vía payment_inbox). */
 @Service
 public class PaymentProcessingService {
 
@@ -23,10 +23,11 @@ public class PaymentProcessingService {
     }
 
     @Transactional
-    public void processOrderCreated(String payload) throws Exception {
+    public void processOrderEvent(String payload) throws Exception {
         JsonNode event = objectMapper.readTree(payload);
-        if (!"ORDER_CREATED".equals(event.path("eventType").asText())) {
-            throw new IllegalArgumentException("Evento recibido no es ORDER_CREATED");
+        String eventType = event.path("eventType").asText();
+        if (!"ORDER_CREATED".equals(eventType) && !"ORDER_CANCELLED".equals(eventType)) {
+            throw new IllegalArgumentException("Evento recibido no es ORDER_CREATED ni ORDER_CANCELLED");
         }
 
         String orderEventId = event.path("eventId").asText();
@@ -35,14 +36,24 @@ public class PaymentProcessingService {
         }
 
         JsonNode order = event.path("order");
-        if (order.path("id").isMissingNode() || order.path("total").isMissingNode()) {
-            throw new IllegalArgumentException("El evento no incluye id y total del pedido");
+        if (order.path("id").isMissingNode()) {
+            throw new IllegalArgumentException("El evento no incluye el id del pedido");
         }
 
         int inserted = jdbcTemplate.update(
                 "INSERT INTO payment_inbox (event_id) VALUES (?) ON CONFLICT (event_id) DO NOTHING",
                 orderEventId);
         if (inserted == 0) {
+            return;
+        }
+
+        if ("ORDER_CANCELLED".equals(eventType)) {
+            pagoRepository.findById(order.path("id").asLong())
+                    .filter(p -> "PENDIENTE".equals(p.getEstado()))
+                    .ifPresent(p -> {
+                        p.setEstado("CANCELADO");
+                        pagoRepository.save(p);
+                    });
             return;
         }
 

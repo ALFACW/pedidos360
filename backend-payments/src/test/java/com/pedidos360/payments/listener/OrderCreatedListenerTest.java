@@ -26,21 +26,21 @@ class OrderCreatedListenerTest {
 
     @Test
     void nacksMalformedOrderToDeadLetterQueue() throws Exception {
-        doThrow(new IllegalArgumentException("sin eventId")).when(service).processOrderCreated("{}");
+        doThrow(new IllegalArgumentException("sin eventId")).when(service).processOrderEvent("{}");
 
         listener.onMessage("{}", channel, 2L, "order-2");
 
-        verify(service, times(1)).processOrderCreated("{}");
+        verify(service, times(1)).processOrderEvent("{}");
         verify(channel).basicNack(2L, false, false);
     }
 
     @Test
     void retriesDatabaseFailuresThenDeadLetters() throws Exception {
-        doThrow(new DataAccessResourceFailureException("BD caida")).when(service).processOrderCreated("{}");
+        doThrow(new DataAccessResourceFailureException("BD caida")).when(service).processOrderEvent("{}");
 
         listener.onMessage("{}", channel, 3L, "order-3");
 
-        verify(service, times(3)).processOrderCreated("{}");
+        verify(service, times(3)).processOrderEvent("{}");
         verify(channel).basicNack(3L, false, false);
     }
 }

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
-/** Dominio pagos: consume order.created. El ACK se envía después de confirmar la transacción. */
+/** Dominio pagos: consume order.created y order.cancelled. El ACK se envía después de confirmar la transacción. */
 @Component
 public class OrderCreatedListener {
 
@@ -30,6 +30,6 @@ public class OrderCreatedListener {
             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag,
             @Header(name = AmqpHeaders.MESSAGE_ID, required = false) String messageId) throws IOException {
         ackHandler.process(channel, deliveryTag, RabbitConfig.ORDER_CREATED_QUEUE, messageId,
-                () -> paymentProcessingService.processOrderCreated(payload));
+                () -> paymentProcessingService.processOrderEvent(payload));
     }
 }
